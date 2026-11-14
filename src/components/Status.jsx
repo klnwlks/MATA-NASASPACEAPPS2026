@@ -14,7 +14,7 @@ export default function Status({ status }) {
   return (
     <ul role="status" className="pointer-events-none absolute inset-x-3 top-[5rem] z-10 flex flex-col items-center gap-2">
       {items.map(([key, s, [title, note]]) => (
-        <li key={key} className="pointer-events-auto rounded-xl border border-line bg-chalk px-4 py-2 shadow-lg">
+        <li key={key} className="pointer-events-auto rounded-xl bg-chalk px-4 py-2 shadow-float">
           <p className={`text-sm font-medium ${tone[s]}`}>{title}</p>
           <p className="text-xs text-muted">{note}</p>
         </li>

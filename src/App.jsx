@@ -44,7 +44,7 @@ export default function App() {
         <MapStage barangays={barangays} selectedId={selectedId} show={show} fit={fit} homeTick={homeTick} onSelect={select} onStatus={report} onMap={setMap} />
         <Navbar list={barangays?.list ?? []} boundariesReady={!!barangays} onSelect={select} />
         <Status status={status} />
-        {barangays && <BarangayCard list={barangays.list} selectedId={selectedId} onSelect={select} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} />}
+        {barangays && <BarangayCard list={barangays.list} selectedId={selectedId} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} />}
         <MapControls map={map} show={show} onShow={setShow} onHome={() => setHomeTick((t) => t + 1)} />
         <Timeline />
         <Credits />

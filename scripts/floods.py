@@ -5,7 +5,7 @@ Inputs (all streamed as small windows, nothing large lands on disk):
     2024-11-15 to 2026-11-15. S1A until 2026-06, S1C from 2025-07, S1D from 2026-04: 12-day, then mostly 6-day revisit.
   - Copernicus Data Space catalogue: the full list of acquisitions, so dates acquired but absent from the
     RTC collection are recorded as missing rather than silently dropped.
-  - Copernicus GLO-30 (slope mask) and ESA WorldCover 2021 (cropland and wetland flags).
+  - Copernicus GLO-30 (slope mask) and ESA WorldCover 2021 (cropland and wetland; low confidence unless lake-connected).
 Method: change detection against a dry-season reference (per-pixel median of Feb-Apr acquisitions).
 Run after boundaries.py: .venv/bin/python scripts/floods.py
 Output: /tmp/mata-floods/classes.npz (uint8 class stack + grid), read by scripts/flood_summary.py.
@@ -16,7 +16,7 @@ import numpy as np, rasterio
 from rasterio.transform import from_origin
 from rasterio.warp import reproject, Resampling, transform_bounds
 from rasterio.windows import from_bounds
-from scipy.ndimage import uniform_filter
+from scipy.ndimage import gaussian_filter, label, uniform_filter
 
 os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "EMPTY_DIR"
 os.environ["GDAL_HTTP_MAX_RETRY"] = "5"
@@ -28,7 +28,8 @@ WC = "/vsicurl/https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/ma
 OUT = "/tmp/mata-floods"
 BUFFER_DEG, PX = 0.01, 10.31  # Web Mercator metres per pixel, about 10 m on the ground at 14.1 N
 DROP_DB, MAX_SLOPE_DEG, PERMANENT_SHARE = 3.0, 5.0, 0.8
-# Classes. Low-confidence water: cropland or wetland, where paddies and ponds look like water outside any flood.
+DEM_SMOOTH_PX = 6  # about 60 m, as in terrain.py
+# Classes. Low-confidence water: cropland or wetland not connected to the lake, where paddies look like water outside any flood.
 NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW = 0, 1, 2, 3, 4
 
 
@@ -98,7 +99,8 @@ def main():
     dates = [f["properties"]["datetime"] for f in items]
     print(len(dates), "RTC scenes", dates[0][:10], "->", dates[-1][:10], "grid", shape)
 
-    dem = warp(DEM, transform, shape)
+    # Smooth the 30 m surface model first: raw, its tree and roof edges read as steep slopes across flat paddies.
+    dem = gaussian_filter(np.nan_to_num(warp(DEM, transform, shape)), DEM_SMOOTH_PX)
     gy, gx = np.gradient(dem, PX * 0.97)  # mercator to ground scale at 14.1 N
     steep = np.degrees(np.arctan(np.hypot(gx, gy))) >= MAX_SLOPE_DEG
     lc = warp(WC, transform, shape, Resampling.nearest, "uint8")
@@ -109,12 +111,17 @@ def main():
     dry_season = [i for i, d in enumerate(dates) if d[5:7] in ("02", "03", "04")]
     ref = np.nanmedian(np.stack([scenes[i] for i in dry_season]), 0)
     permanent = np.mean(np.stack([water[i] for i in dry_season]), 0) >= PERMANENT_SHARE
+    lab, _ = label(permanent)
+    lake = lab == np.bincount(lab[lab > 0]).argmax()  # Laguna de Bay: the largest permanent water body
     classes = np.zeros((len(dates), *shape), "uint8")
     for i, (s, wet) in enumerate(zip(scenes, water)):
         c = np.full(shape, DRY, "uint8")
         flood = wet & ~permanent & (s - ref <= -DROP_DB)
+        # Cropland or wetland water touching the lake is lake inundation; isolated paddy water stays low confidence.
+        lab, _ = label(flood | lake)
+        lake_linked = np.isin(lab, np.unique(lab[lake]))
         c[flood] = FLOOD
-        c[flood & low_conf] = FLOOD_LOW
+        c[flood & low_conf & ~lake_linked] = FLOOD_LOW
         c[permanent] = PERMANENT
         c[~np.isfinite(s) | (steep & ~permanent)] = NODATA
         classes[i] = c

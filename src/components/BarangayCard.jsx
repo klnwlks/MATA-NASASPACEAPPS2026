@@ -11,12 +11,13 @@ function Row({ icon: Icon, tone, label, children, mono }) {
   )
 }
 
-const STATE = { 1: ['Flooded', 'bg-cobalt text-white'], 0: ['No flood detected', 'bg-page text-ink'], [-1]: ['Unknown', 'bg-page text-muted'] }
+const STATE = { 1: ['Flooded', 'bg-cobalt text-white'], 0: ['No flood seen', 'bg-page text-ink'], [-1]: ['Unknown', 'bg-page text-muted'] }
 const range = (e) => (e.maxDays == null ? `at least ${e.minDays} d, upper bound unknown` : `between ${e.minDays} and ${e.maxDays} days`)
 
 // Observed state on the current frame, and every flooded run as a duration range bounded by real passes.
 function Observations({ rec, frame, frames, onFrame }) {
   const [label, tone] = STATE[rec.state[frame]]
+  const seen = Math.round(rec.visibleShare[frame] * 100)
   return (
     <section className="mt-4 rounded-xl bg-cobalt-tint p-3">
       <div className="flex items-center gap-2">
@@ -25,7 +26,7 @@ function Observations({ rec, frame, frames, onFrame }) {
         <span className={`ml-auto rounded-lg px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
       </div>
       <p className="mt-1 font-mono text-sm">{rec.floodHa[frame]} ha flood · {rec.lowConfidenceHa[frame]} ha low-confidence</p>
-      <p className="text-xs text-muted">Low confidence: water on cropland or wetland, often paddies. {Math.round(rec.validShare[frame] * 100)} % of the barangay assessed.</p>
+      <p className="text-xs text-muted">Radar sees {seen} % of this barangay. Buildings and tree cover hide floodwater from it and are left unknown, never dry. Low confidence: water on cropland or wetland away from the lake, often paddies.</p>
       <h3 className="mt-3 text-sm font-medium text-cobalt-ink">Flooded runs, {frames.length} passes</h3>
       {rec.episodes.length ? (
         <ul className="mt-1 divide-y divide-line/70">

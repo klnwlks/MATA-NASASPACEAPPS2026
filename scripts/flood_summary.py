@@ -19,11 +19,12 @@ from rasterio.transform import Affine
 from rasterio.warp import transform_geom
 
 SRC, OUT = "/tmp/mata-floods/classes.npz", "public/data/floods"
-FLOOR_HA, NOISE_FACTOR, MIN_VALID = 2.0, 3.0, 0.5
-NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW = range(5)
-# RGBA per class: unknown is a pale grey veil (never drawn as dry); flood is cyan, apart from the cobalt selection;
-# low confidence is the same cyan in diagonal stripes, so it differs by pattern as well as by colour.
-PALETTE = {NODATA: (120, 120, 120, 70), DRY: (0, 0, 0, 0), PERMANENT: (0, 0, 0, 0), FLOOD: (14, 157, 184, 215), FLOOD_LOW: (14, 157, 184, 170)}
+FLOOR_HA, NOISE_FACTOR, MIN_VISIBLE = 2.0, 3.0, 0.25
+NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW, BLIND = range(6)
+# RGBA per class: unknown (no data, steep, radar-blind) is a pale grey veil, never drawn as dry; flood is cyan, apart from
+# the cobalt selection; low confidence is the same cyan in diagonal stripes, so it differs by pattern as well as by colour.
+UNKNOWN = (120, 120, 120, 70)
+PALETTE = {NODATA: UNKNOWN, BLIND: UNKNOWN, DRY: (0, 0, 0, 0), PERMANENT: (0, 0, 0, 0), FLOOD: (14, 157, 184, 215), FLOOD_LOW: (14, 157, 184, 170)}
 STRIPE_PX = 6
 
 
@@ -56,16 +57,16 @@ def main():
         name = f"{d[:10].replace('-', '')}.png"
         Image.fromarray(rgba, "RGBA").save(f"{OUT}/{name}", optimize=True)
         gap = (day(d) - day(dates[i - 1])).days if i else None
-        frames.append({"utc": d, "platform": str(z["platforms"][i]), "file": name, "thresholdDb": round(float(z["thresholds"][i]), 2), "daysSincePrevious": gap})
+        frames.append({"utc": d, "platform": str(z["platforms"][i]).upper(), "file": name, "thresholdDb": round(float(z["thresholds"][i]), 2), "daysSincePrevious": gap})
 
     barangays = {}
     for b, f in enumerate(feats, 1):
         m = ids == b
-        valid = np.array([(classes[i][m] != NODATA).mean() for i in range(n)])
+        visible = np.array([(~np.isin(classes[i][m], (NODATA, BLIND))).mean() for i in range(n)])
         high = np.array([(classes[i][m] == FLOOD).sum() * px_ha for i in range(n)])
         low = np.array([(classes[i][m] == FLOOD_LOW).sum() * px_ha for i in range(n)])
         noise = float(np.percentile([high[i] for i, d in enumerate(dates) if d in dry_ref], 95))
-        state = np.where(valid < MIN_VALID, -1, (high >= max(FLOOR_HA, NOISE_FACTOR * noise)).astype(int))  # -1 unknown, 0 dry, 1 flooded
+        state = np.where(visible < MIN_VISIBLE, -1, (high >= max(FLOOR_HA, NOISE_FACTOR * noise)).astype(int))  # -1 unknown, 0 none seen, 1 flooded
         episodes, i = [], 0
         while i < n:
             if state[i] != 1:
@@ -81,7 +82,7 @@ def main():
                              "maxDays": None if before is None or after is None else (day(dates[after]) - day(dates[before])).days, "unknownInside": gap_unknown})
             i = j + 1
         barangays[f["properties"]["psgc"]] = {"name": f["properties"]["name"], "areaHa": round(float(m.sum() * px_ha), 1), "noiseHa": round(noise, 2),
-                                              "floodHa": high.round(1).tolist(), "lowConfidenceHa": low.round(1).tolist(), "validShare": valid.round(2).tolist(),
+                                              "floodHa": high.round(1).tolist(), "lowConfidenceHa": low.round(1).tolist(), "visibleShare": visible.round(2).tolist(),
                                               "state": state.tolist(), "episodes": episodes}
 
     to_ll = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
@@ -93,7 +94,8 @@ def main():
         "acquiredNotProcessed": sorted(a for a in map(str, z["acquired"]) if a.split(":")[0] not in processed),
         "dryReference": sorted(dry_ref),
         "method": {"reference": "per-pixel median VV of Feb-Apr acquisitions", "water": "VV below per-date Otsu threshold", "flood": "water, not permanent water, at least 3 dB below reference, slope under 5 degrees (60 m smoothed GLO-30)",
-                   "lowConfidence": "flood pixels in ESA WorldCover 2021 cropland or wetland that are not connected to Laguna de Bay", "barangayFlooded": f"flood area >= {FLOOR_HA} ha and >= {NOISE_FACTOR}x dry-season noise", "minValidShare": MIN_VALID},
+                   "lowConfidence": "flood pixels in ESA WorldCover 2021 cropland or wetland that are not connected to Laguna de Bay", "radarBlind": "WorldCover built-up or tree cover without detected open water: unknown",
+                   "barangayFlooded": f"flood area >= {FLOOR_HA} ha and >= {NOISE_FACTOR}x dry-season noise", "minVisibleShare": MIN_VISIBLE},
         "barangays": barangays,
     }
     json.dump(manifest, open(f"{OUT}/manifest.json", "w"), separators=(",", ":"))

@@ -30,7 +30,8 @@ BUFFER_DEG, PX = 0.01, 10.31  # Web Mercator metres per pixel, about 10 m on the
 DROP_DB, MAX_SLOPE_DEG, PERMANENT_SHARE = 3.0, 5.0, 0.8
 DEM_SMOOTH_PX = 6  # about 60 m, as in terrain.py
 # Classes. Low-confidence water: cropland or wetland not connected to the lake, where paddies look like water outside any flood.
-NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW = 0, 1, 2, 3, 4
+# Radar-blind: built-up or tree cover, where C-band sees walls and canopy, not the water around them (unknown, never dry).
+NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW, BLIND = 0, 1, 2, 3, 4, 5
 
 
 def get(url, data=None):
@@ -92,11 +93,19 @@ def main():
     tok = get(f"{PC}/sas/v1/token/sentinel-1-rtc")["token"]
 
     def load(item):
-        return to_db(warp(item["assets"]["vv"]["href"] + "?" + tok, transform, shape))
+        return to_db(warp(item["assets"]["vv"]["href"] + "?" + tok, transform, shape)).astype("float16")
 
-    with ThreadPoolExecutor(4) as ex:
-        scenes = list(ex.map(load, items))
+    # Streamed windows are cached in /tmp (RAM-backed here); delete vv.npz to re-stream.
+    cache = f"{OUT}/vv.npz"
     dates = [f["properties"]["datetime"] for f in items]
+    platforms = [f["properties"]["platform"] for f in items]
+    if os.path.exists(cache) and list(np.load(cache)["dates"]) == dates:
+        scenes = list(np.load(cache)["vv"].astype("float32"))
+    else:
+        with ThreadPoolExecutor(4) as ex:
+            stack = np.stack(list(ex.map(load, items)))
+        np.savez(cache, vv=stack, dates=np.array(dates))
+        scenes = list(stack.astype("float32"))
     print(len(dates), "RTC scenes", dates[0][:10], "->", dates[-1][:10], "grid", shape)
 
     # Smooth the 30 m surface model first: raw, its tree and roof edges read as steep slopes across flat paddies.
@@ -105,6 +114,7 @@ def main():
     steep = np.degrees(np.arctan(np.hypot(gx, gy))) >= MAX_SLOPE_DEG
     lc = warp(WC, transform, shape, Resampling.nearest, "uint8")
     low_conf = np.isin(lc, (40, 90, 95))  # cropland, herbaceous wetland, mangroves
+    blind = np.isin(lc, (10, 50))  # tree cover, built-up
 
     thr = [otsu(s) for s in scenes]
     water = [s < t for s, t in zip(scenes, thr)]
@@ -122,10 +132,11 @@ def main():
         lake_linked = np.isin(lab, np.unique(lab[lake]))
         c[flood] = FLOOD
         c[flood & low_conf & ~lake_linked] = FLOOD_LOW
+        c[blind & ~flood] = BLIND
         c[permanent] = PERMANENT
         c[~np.isfinite(s) | (steep & ~permanent)] = NODATA
         classes[i] = c
-    np.savez_compressed(f"{OUT}/classes.npz", classes=classes, dates=np.array(dates), platforms=np.array([f["properties"]["platform"] for f in items]),
+    np.savez_compressed(f"{OUT}/classes.npz", classes=classes, dates=np.array(dates), platforms=np.array(platforms),
                         thresholds=np.array(thr), transform=np.array(transform)[:6], dry_season=np.array([dates[i] for i in dry_season]),
                         acquired=np.array([f"{d}:{p}" for d, p in acquisitions()]))
     print("dry-season reference scenes", len(dry_season), "thresholds dB", np.round(thr, 1).tolist())

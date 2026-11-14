@@ -15,5 +15,6 @@ Retrieved 2026-11-15 (area moved from Los Baños to Bay, Laguna). Regenerate wit
 - Terrain AOI is the barangay bounds plus 0.08 deg, kept inside the single GLO-30 tile N14 E121.
 - Of 1,570 building features sampled at z15 inside Bay, 243 (about 15 %) carry a `height`. The rest get a fixed schematic height in the app. OSM building coverage in Bay is sparse; missing footprints are unknown, not empty land.
 - Barangays 0403402007 and 0403402008 do not exist in the source; 15 barangays are listed. Not yet checked against the PSA list.
-- Flood frames show open water only. Water on WorldCover cropland or wetland that is not connected to the lake is low confidence and excluded from durations: in Bay this is most of the signal (inland paddies 1 to 5 km from the shore), so paddy cycles and rain-flooded paddies cannot be told apart.
+- Flood frames show open water only. WorldCover built-up and tree cover is radar-blind (C-band returns walls and canopy, not the water around them) and is unknown, not dry: Bitin, Santa Cruz, Tranca and both poblacions are under 25 % visible and stay unknown on every pass. Bay lakeshore homes reported waist-deep from July to December 2025 (Rappler, 30 Sep 2025) do not appear as flood for this reason.
+- Water on WorldCover cropland or wetland that is not connected to the lake is low confidence and excluded from durations: in Bay this is most of the signal (inland paddies 1 to 5 km from the shore), so paddy cycles and rain-flooded paddies cannot be told apart.
 - Boundaries are reference geometry, not a legal determination.

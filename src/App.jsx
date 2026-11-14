@@ -7,6 +7,7 @@ import MunicipalityCard from './components/MunicipalityCard.jsx'
 import Timeline from './components/Timeline.jsx'
 import Status from './components/Status.jsx'
 import Credits from './components/Credits.jsx'
+import LakeChart from './components/LakeChart.jsx'
 import { loadBarangays, loadFloods } from './data.js'
 import { manilaTime } from './map/sun.js'
 
@@ -71,6 +72,7 @@ export default function App() {
         {barangays && <BarangayCard list={barangays.list} floods={floods} frame={frame} selectedId={selectedId} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} onFrame={setFrame} />}
         {municipality && <MunicipalityCard municipality={municipality} floods={floods} onFrame={setFrame} onClose={() => setMunicipality(null)} />}
         <MapControls map={map} show={show} onShow={setShow} onHome={() => setHomeTick((t) => t + 1)} minutes={minutes} onMinutes={setMinutes} />
+        <LakeChart lake={floods?.lake} frames={floods?.frames ?? []} frame={frame} />
         <Timeline floods={floods} frame={frame} onFrame={setFrame} />
         <Credits />
       </div>

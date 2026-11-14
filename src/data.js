@@ -27,11 +27,14 @@ export async function loadBarangays() {
 }
 
 // Observed Sentinel-1 frames and per-barangay flood records, precomputed by scripts/floods.py and flood_summary.py.
+// The lake series (scripts/lake_level.py) is context only: if it is missing the replay still works without it.
 export async function loadFloods() {
-  const res = await fetch(`${import.meta.env.BASE_URL}data/floods/manifest.json`)
+  const base = `${import.meta.env.BASE_URL}data/floods/`
+  const [res, lakeRes] = await Promise.all([fetch(`${base}manifest.json`), fetch(`${base}lake.json`).catch(() => null)])
   if (!res.ok) throw new Error(`floods ${res.status}`)
   const m = await res.json()
-  return { ...m, frames: m.frames.map((f) => ({ ...f, url: `${import.meta.env.BASE_URL}data/floods/${f.file}` })) }
+  const lake = lakeRes?.ok ? await lakeRes.json() : null
+  return { ...m, lake, frames: m.frames.map((f) => ({ ...f, url: `${base}${f.file}` })) }
 }
 
 const PHT = new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })

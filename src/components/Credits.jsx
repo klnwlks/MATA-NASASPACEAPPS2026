@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Info, ShieldAlert, X } from 'lucide-react'
 
 export default function Credits() {
   const [open, setOpen] = useState(false)
@@ -11,8 +12,8 @@ export default function Credits() {
   return (
     <div className="pointer-events-none absolute bottom-[4.75rem] right-3 z-20 flex flex-col items-end gap-2 md:bottom-3">
       {open && (
-        <section id="credits-note" className="pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border border-line bg-chalk p-4 shadow-lg">
-          <p className="text-sm font-medium">Not an official hazard map</p>
+        <section id="credits-note" className="pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl bg-chalk p-4 shadow-float">
+          <p className="flex items-center gap-2 text-sm font-medium"><span className="grid size-8 place-items-center rounded-lg bg-amber-tint text-amber-ink"><ShieldAlert aria-hidden size={17} /></span>Not an official hazard map</p>
           <p className="mt-2 text-xs text-muted">© OpenStreetMap contributors</p>
           <p className="text-xs text-muted">Contains modified Copernicus DEM GLO-30</p>
           <p className="text-xs text-muted">NAMRIA, PSA via OCHA COD-AB (CC BY-IGO)</p>
@@ -24,9 +25,9 @@ export default function Credits() {
         aria-controls="credits-note"
         aria-label={open ? 'Hide disclaimer and credits' : 'Show disclaimer and credits'}
         onClick={() => setOpen((o) => !o)}
-        className="pointer-events-auto grid size-10 place-items-center rounded-full border border-line bg-chalk font-mono text-base font-medium shadow-lg hover:bg-cobalt-tint"
+        className="pointer-events-auto grid size-10 place-items-center rounded-xl bg-chalk text-cobalt shadow-float hover:bg-cobalt-tint"
       >
-        i
+        {open ? <X aria-hidden size={19} /> : <Info aria-hidden size={19} />}
       </button>
     </div>
   )

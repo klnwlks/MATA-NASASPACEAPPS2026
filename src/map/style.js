@@ -2,7 +2,7 @@ export const SCHEMATIC_HEIGHT_M = 6
 export const TERRAIN_EXAGGERATION = 1.4
 export const HOME_VIEW = { bearing: 180, pitch: 62 }
 
-const C = { land: '#F2EFE0', lake: '#11B5AE', park: '#8ED9AF', forest: '#3E9B5A', road: '#E8807F', farm: '#DCE7A6', town: '#EFE4CF' }
+const C = { land: '#F2EFE0', lake: '#5C95F2', park: '#8ED9AF', forest: '#3E9B5A', road: '#E8807F', farm: '#DCE7A6', town: '#EFE4CF' }
 const kind = (...k) => ['in', ['get', 'kind'], ['literal', k]]
 
 const dem = (root) => ({ type: 'raster-dem', encoding: 'terrarium', tileSize: 256, minzoom: 8, maxzoom: 12, tiles: [`${root}data/terrain/{z}/{x}/{y}.png`], bounds: [121.091, 14.03, 121.347, 14.278] })
@@ -32,7 +32,7 @@ export function buildStyle(origin) {
       { id: 'rivers', type: 'line', source: 'base', 'source-layer': 'water', filter: kind('river', 'stream'), paint: { 'line-color': C.lake, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 15, 3] } },
       { id: 'roads-minor', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 13, filter: kind('minor_road'), paint: { 'line-color': '#FFFFFF', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 0.5, 17, 4] } },
       { id: 'roads-major', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), paint: { 'line-color': C.road, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 17, 7] } },
-      { id: 'buildings', type: 'fill-extrusion', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: ['==', ['get', 'kind'], 'building'], paint: { 'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 0, '#FAF1E2', 8, '#F4DFC4', 16, '#EBBF9B', 30, '#D8906F'], 'fill-extrusion-height': ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 'fill-extrusion-opacity': 0.97, 'fill-extrusion-vertical-gradient': true } },
+      { id: 'buildings', type: 'fill-extrusion', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: ['==', ['get', 'kind'], 'building'], paint: { 'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 0, '#FBF3E4', 8, '#F7E0B4', 16, '#F0BE6E', 30, '#E48F45'], 'fill-extrusion-height': ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 'fill-extrusion-opacity': 0.97, 'fill-extrusion-vertical-gradient': true } },
     ],
   }
 }

@@ -2,6 +2,7 @@
 // night tint. Shadows are "kinda" dynamic: direction and length follow the sun, but MapLibre can only offset a
 // whole layer, so buildings are bucketed by height and each bucket gets one offset.
 import { SHADOW_BUCKETS } from './style.js'
+import { setWaterLight } from './water.js'
 
 const RAD = Math.PI / 180
 const LAT = 14.14
@@ -80,5 +81,6 @@ export function applySun(map, date) {
   // that applies the new paint values, or the cache is rebuilt with the old ones.
   map.once('render', () => map.setFeatureState({ source: 'night', id: 1 }, { at: date.getTime() }))
   map.triggerRepaint()
+  setWaterLight(p, sun)
   return { ...sun, ...p }
 }

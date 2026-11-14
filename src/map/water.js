@@ -1,12 +1,24 @@
 // Flood frames as a lit water surface: one terrain-following mesh covering the frame, drawn by three.js after the
 // extrusions and trees, so roofs and crowns above the surface stay dry and the parts below it read as submerged.
-// Cost: one 32k-vertex mesh, a texture swap per frame, a trivial fragment shader.
+// Cost: one 32k-vertex mesh, a texture swap per frame, a cheap fragment shader; ripples repaint at RIPPLE_FPS.
 // The surface height is a visual cue (lake stage above its two-year low, see floodRise), not measured depth.
-import { BufferAttribute, Camera, DoubleSide, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector3, WebGLRenderer } from 'three'
+import { BufferAttribute, Camera, Color, DoubleSide, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector3, Vector4, WebGLRenderer } from 'three'
 import { MercatorCoordinate } from 'maplibre-gl'
 
+const RIPPLE_FPS = 12
 const DEM_N = 2 ** 12 // the terrain's own tile level, so the surface follows the ground MapLibre draws
 const [NX, NY] = [160, 200]
+
+// Shared with sun.js so the water takes the same sky, horizon and sun as the rest of the map.
+const light = { uSky: { value: new Color() }, uHorizon: { value: new Color() }, uSunDir: { value: new Vector3(0, 0, 1) }, uSun: { value: 1 }, uAmb: { value: 1 } }
+export function setWaterLight(p, sun) {
+  const [az, alt] = [(sun.azimuth * Math.PI) / 180, (sun.altitude * Math.PI) / 180]
+  light.uSky.value.set(p.sky)
+  light.uHorizon.value.set(p.horizon)
+  light.uSunDir.value.set(Math.sin(az) * Math.cos(alt), Math.cos(az) * Math.cos(alt), Math.sin(alt))
+  light.uSun.value = p.sun
+  light.uAmb.value = p.ambient / 1.3
+}
 
 // Metres of surface above the ground: 0.3 m plus the lake stage at the frame time over the series low.
 export function floodRise(lake, utc) {
@@ -63,11 +75,27 @@ void main() {
 // Mask alpha is the frame's class: 215 flood, 170 low confidence, 70 unknown veil (scripts/flood_summary.py).
 const FRAG = /* glsl */ `
 uniform sampler2D uMask;
+uniform vec3 uEye, uSky, uHorizon, uSunDir;
+uniform float uTime, uSun, uAmb;
+varying vec3 vW;
 varying vec2 vUv;
 void main() {
   float a = texture2D(uMask, vUv).a;
   if (a < 0.05) discard;
-  gl_FragColor = a < 0.5 ? vec4(vec3(0.19), 0.27) : vec4(0.02, 0.3, 0.4, a > 0.76 ? 0.8 : 0.55);
+  if (a < 0.5) { gl_FragColor = vec4(vec3(0.19), 0.27); return; }
+  vec3 to = uEye - vW;
+  float dist = length(to);
+  vec3 v = to / dist;
+  // Three crossing sine waves; the slope is their analytic gradient, calmed with distance so far ripples don't shimmer.
+  vec2 p = vW.xy, k1 = vec2(0.31, 0.12), k2 = vec2(-0.17, 0.44), k3 = vec2(0.82, -0.51);
+  vec2 grad = cos(dot(k1, p) + uTime * 0.8) * k1 * 0.05 + cos(dot(k2, p) - uTime * 1.1) * k2 * 0.035 + cos(dot(k3, p) + uTime * 1.7) * k3 * 0.018;
+  vec3 n = normalize(vec3(-grad / (1.0 + dist / 600.0), 1.0));
+  vec3 r = reflect(-v, n);
+  float fres = 0.03 + 0.97 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
+  vec3 mirror = mix(uHorizon, uSky, clamp(r.z * 1.5, 0.0, 1.0));
+  vec3 col = mix(vec3(0.02, 0.2, 0.3) * uAmb, mirror, fres) + vec3(1.0, 0.93, 0.8) * pow(max(dot(r, uSunDir), 0.0), 220.0) * uSun;
+  col = mix(col, uHorizon, smoothstep(4000.0, 12000.0, dist)); // hazes out with the sky
+  gl_FragColor = vec4(col, mix(0.8, 0.95, fres) * (a > 0.76 ? 1.0 : 0.7));
   #include <colorspace_fragment>
 }`
 
@@ -80,13 +108,15 @@ export async function addWaterLayer(map, corners, root) {
   const origin = MercatorCoordinate.fromLngLat(map.getCenter(), 0)
   const s = origin.meterInMercatorCoordinateUnits()
   const toLocal = new Matrix4().makeTranslation(origin.x, origin.y, 0).scale(new Vector3(s, -s, s))
-  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uEx: { value: 1 }, uRise: { value: 0.5 } } })
+  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uRise: { value: 0.5 } } })
   const mesh = new Mesh(surface(dem, nw, se, origin, s), mat)
   mesh.frustumCulled = false
   const scene = new Scene().add(mesh)
-  const [camera, loader] = [new Camera(), new TextureLoader()]
+  const [camera, inv, eye, loader] = [new Camera(), new Matrix4(), new Vector4(), new TextureLoader()]
   const u = mat.uniforms
-  let [seq, renderer] = [0, null]
+  let [seq, renderer, visible] = [0, null, false]
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
+  const timer = setInterval(() => visible && !document.hidden && !reduced.matches && map.triggerRepaint(), 1000 / RIPPLE_FPS)
 
   map.addLayer({
     id: 'flood',
@@ -99,11 +129,15 @@ export async function addWaterLayer(map, corners, root) {
     render: (_, args) => {
       if (!u.uMask.value) return
       camera.projectionMatrix.fromArray(args.defaultProjectionData.mainMatrix).multiply(toLocal)
+      eye.set(0, 0, 1, 0).applyMatrix4(inv.copy(camera.projectionMatrix).invert()) // the eye is where w = 0
+      u.uEye.value.set(eye.x / eye.w, eye.y / eye.w, eye.z / eye.w)
+      u.uTime.value = (performance.now() / 1000) % 600
       u.uEx.value = map.getTerrain()?.exaggeration ?? 0
       renderer.resetState()
       renderer.render(scene, camera)
     },
     onRemove: () => {
+      clearInterval(timer)
       mesh.geometry.dispose()
       mat.dispose()
       u.uMask.value?.dispose()
@@ -119,6 +153,7 @@ export async function addWaterLayer(map, corners, root) {
         u.uMask.value?.dispose()
         u.uMask.value = t
         u.uRise.value = rise
+        visible = true
         map.triggerRepaint()
       })
     },

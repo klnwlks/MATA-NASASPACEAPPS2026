@@ -4,8 +4,10 @@ Two kinds, kept apart so the map can draw them differently:
   k=1  OSM `natural=tree` points, as mapped, across the whole AOI.
   k=0  decorative fill: seeded random points inside mapped wood, forest, reserve, park and garden polygons,
        within Los Baños plus a small buffer. Not observed trees; only texture for land OSM marks as green.
-Run after the PMTiles extract and boundaries.py: .venv/bin/python scripts/trees.py
-Output: public/data/trees.geojson (two MultiPoint features)
+Each point carries its ground elevation in metres, sampled from the app's own terrain tiles (z12), so trees sit
+on the rendered surface without querying terrain at runtime.
+Run after the PMTiles extract, boundaries.py and terrain.py: .venv/bin/python scripts/trees.py
+Output: public/data/trees.geojson (two MultiPoint features, coordinates [lon, lat, elevation_m])
 """
 import gzip
 import json
@@ -16,6 +18,7 @@ from pmtiles.reader import MmapSource, Reader
 from shapely import box, contains_xy, transform
 from shapely.geometry import shape
 from shapely.ops import unary_union
+from PIL import Image
 
 SRC = "public/data/losbanos.pmtiles"
 OUT = "public/data/trees.geojson"
@@ -25,6 +28,7 @@ Z, EXTENT = 15, 4096
 DENSITY = {"wood": 25, "forest": 25, "nature_reserve": 10, "park": 8, "garden": 6}
 MUNI_BUFFER_DEG = 0.003  # ~300 m past the municipal line
 SEED = 20261115
+DEM_Z, DEM_DIR = 12, "public/data/terrain"
 
 
 def tile_x(lon, n):
@@ -40,6 +44,27 @@ def to_lonlat(tx, ty, px, py):
     lon = (tx + px / EXTENT) / n * 360 - 180
     lat = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (ty + py / EXTENT) / n))))
     return round(lon, 6), round(lat, 6)
+
+
+_dem = {}
+
+
+def elevation(lon, lat):
+    """Bilinear Terrarium sample from the z12 terrain tiles, clamped at tile edges."""
+    n = 2 ** DEM_Z
+    fx, fy = float(tile_x(lon, n)), float(tile_y(lat, n))
+    key = (int(fx), int(fy))
+    if key not in _dem:
+        rgb = np.asarray(Image.open(f"{DEM_DIR}/{DEM_Z}/{key[0]}/{key[1]}.png").convert("RGB"), dtype=np.float64)
+        _dem[key] = rgb[..., 0] * 256 + rgb[..., 1] + rgb[..., 2] / 256 - 32768
+    h = _dem[key]
+    px, py = min((fx - key[0]) * 256 - 0.5, 254.999), min((fy - key[1]) * 256 - 0.5, 254.999)
+    px, py = max(px, 0), max(py, 0)
+    x0, y0 = int(px), int(py)
+    dx, dy = px - x0, py - y0
+    top = h[y0, x0] * (1 - dx) + h[y0, x0 + 1] * dx
+    bottom = h[y0 + 1, x0] * (1 - dx) + h[y0 + 1, x0 + 1] * dx
+    return round(float(top * (1 - dy) + bottom * dy), 1)
 
 
 def main():
@@ -72,7 +97,7 @@ def main():
                     area = unary_union(polys).buffer(0).intersection(local)
                     pts = rng.uniform(0, EXTENT, size=(rng.poisson(per_ha * hectares_per_tile), 2))  # this tile only: no duplicates across tiles
                     fill += [to_lonlat(tx, ty, px, py) for px, py in pts[contains_xy(area, pts[:, 0], pts[:, 1])]]
-    out = [{"type": "Feature", "properties": {"k": k}, "geometry": {"type": "MultiPoint", "coordinates": pts}} for k, pts in ((1, list(osm)), (0, fill))]
+    out = [{"type": "Feature", "properties": {"k": k}, "geometry": {"type": "MultiPoint", "coordinates": [[*p, elevation(*p)] for p in pts]}} for k, pts in ((1, list(osm)), (0, fill))]
     with open(OUT, "w") as f:
         json.dump({"type": "FeatureCollection", "features": out}, f, separators=(",", ":"))
     print(f"{len(osm)} OSM trees, {len(fill)} fill trees -> {OUT}")

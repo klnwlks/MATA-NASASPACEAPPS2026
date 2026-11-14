@@ -10,7 +10,7 @@ Map palette (from the Alive Maps reference): land `#F2EFE0`, lake `#11B5AE`, min
 
 Canopy and ground: Sentinel-2 cloudless 2024 (EOX) imagery on the terrain gives forest and paddy texture zoomed out and fades out by z15.5, before its 10 m pixels blur street-level detail. From z14, low-poly three.js trees (instanced, two levels of detail) stand on the terrain; mapped OSM trees and decorative fill share one look, and Sources discloses the fill. Buildings are plaster-white with a thin roof cap in muted roof colours, grounded by a blurred contact rim and an offset shadow. Over imagery, unselected barangay lines lose contrast on dark forest; the selection casing still holds.
 
-Time of day: a sun/moon control sets the Manila clock (default 15:30) for lighting only. The real sun position over Los Baños drives sky, extrusion light, hillshade direction and a night wash. Building shadows follow the sun's direction and length, but only roughly: MapLibre can only shift a whole layer, so buildings are grouped into three height bands with one offset each. Trees keep fixed lighting.
+Time of day: a sun/moon control sets the Manila clock (default 15:30) for lighting only. The real sun position over Bay drives sky, extrusion light, hillshade direction and a night wash. Building shadows follow the sun's direction and length, but only roughly: MapLibre can only shift a whole layer, so buildings are grouped into three height bands with one offset each. Trees keep fixed lighting.
 
 ## Colour: Cobalt on Chalk
 
@@ -36,10 +36,11 @@ Selection: 5 px cobalt line over an 11 px white casing, with a ~25 % cobalt fill
 
 Terse, label first, then the fact. An instrument reporting status.
 
-- Navbar: search `Barangay or PSGC` · status chip `Observations: none loaded` (never `0`: a zero reads as "no flooding") · `Sources`
-- Empty sidebar: `No barangay selected` / `14 barangays · Los Baños, Laguna. Select on map or list.`
-- Selected sidebar: rows `PSGC`, `Municipality`, `Geometry`; section `Observations` → `No storm observations loaded` / `Flood extent: not in this build. Empty ≠ dry.`
-- Timeline: `Replay · offline` / `Only observed acquisition dates will appear`
+- Navbar: search `Barangay or PSGC` · status chip `Observations: 84 Sentinel-1 dates` or `Observations: none loaded` (never `0`: a zero reads as "no flooding") · `Sources`
+- Empty sidebar: `No barangay selected` / `15 barangays · Bay, Laguna. Select on map or list.`
+- Selected sidebar: rows `PSGC`, `Municipality`, `Geometry`; section `This pass` → `Flooded` / `No flood detected` / `Unknown`, flood and low-confidence hectares, then `Flooded runs` as `between X and Y days` (or `upper bound unknown`).
+- Timeline: one stop per observed pass, labelled in Philippine time with satellite and `N d after previous`, so 6- and 12-day jumps never read as daily.
+- Flood overlay: cyan for flood (kept apart from the cobalt selection), cyan stripes for low confidence, grey veil for unknown. Unknown is never drawn as dry.
 - States: `Terrain · loading` (`GLO-30 tiles`), `Terrain · unavailable` (`Flat fallback. Elevation not rendered.`), `Boundaries · failed` (`Selection disabled.`)
 - Disclaimer: `Not an official hazard map`
 - Sources panel: `Elevation · GLO-30` / `Buildings · OSM` / `Boundaries · COD-AB`, one line each on the limits.

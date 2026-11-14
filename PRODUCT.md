@@ -10,17 +10,19 @@ web
 
 Primary: hackathon judges evaluating the project in a live demo, on a desktop browser at a venue. They need to grasp in seconds what place is shown, what the tool will eventually do, and that the team is honest about what the data can and cannot say.
 
-The story's subjects, not the demo's operators: Los Baños residents in low-lying barangays, municipal DRRM / LGU staff planning drainage and evacuation. Their needs shape terminology and honesty constraints, not the current information density.
+The story's subjects, not the demo's operators: Bay residents in low-lying lakeshore and paddy barangays, municipal DRRM / LGU staff planning drainage and evacuation. Their needs shape terminology and honesty constraints, not the current information density.
 
 ## Product Purpose
 
 **MATA: Tanaw** — *Mapping A Typhoon Aftermath: Tracking Affected Neighborhoods Across Waters*. (*mata* = eye, *tanaw* = view / gaze across a distance.)
 
-Long-term goal: replay how typhoon floodwater spread and receded using SAR (Sentinel-1) observations, show how long water stayed per barangay as a range, and validate against resident photos. Research basis: `Flood-Rewind-What-the-Typhoon-Left-Behind.pdf`.
+Goal: a SAR-based decision-support web app. Using multi-temporal Sentinel-1 backscatter change detection, it replays how typhoon floods spread and receded in Philippine river basins and maps how long each barangay stayed underwater, with uncertainty ranges. Exposure indices and resident photo validation help LGUs and DRRM offices prioritise drainage, evacuation and recovery. Research basis: `Flood-Rewind-What-the-Typhoon-Left-Behind.pdf`.
 
-Current phase (see `MAP-VIEWER-ARCHITECTURE.md`): a 3D geographic stage of **Los Baños, Laguna** only — real terrain (Copernicus GLO-30), extruded OSM building footprints, selectable barangay boundaries with name and 10-digit PSGC, a sidebar, and a visibly disabled storm timeline. No water, flood, or storm data is rendered in this phase.
+Cadence: Sentinel-1 is not daily. Bay is covered by one descending track (relative orbit 32, about 05:47 Philippine time): every 12 days until mid-2025 (S1A alone), then mostly every 6 days (S1A+S1C, later S1C+S1D). The ascending track 142 exists from April 2025 but is not mixed in: a second viewing geometry needs its own reference and adds false changes.
 
-Success for this phase: a judge recognizes Los Baños, selects a barangay, reads its real identifiers, and understands that storm replay is coming and not faked.
+Current phase: **Bay, Laguna** (PSGC `0403402000`, 15 barangays), the last two years of track-32 passes (2024-11-15 to 2026-11-15). 3D stage (GLO-30 terrain, OSM buildings, COD-AB barangays) plus a replay of every observed pass, per-barangay flooded runs as "between X and Y days" ranges, and municipality-wide flood runs. Storms are not named by the app; runs are dated only.
+
+Success for this phase: a judge recognises Bay on Laguna de Bay, steps through real pass dates, opens a barangay and reads a duration range bounded by real passes, and sees where the record is unknown.
 
 ## Positioning
 
@@ -34,10 +36,10 @@ Time and duration of flooding, with uncertainty built into the display, at baran
 
 ## Capabilities and Constraints
 
-- In scope now: pan/zoom/rotate/pitch, reset view, select/clear barangay via map or searchable list, toggle boundaries/buildings, disabled timeline shell, explicit per-source loading and failure states, persistent attribution, "Not an official hazard map" notice.
-- Out of scope now: any storm, flood, water, rainfall, or photo content.
-- Terminology: barangay, PSGC, observed vs modeled vs unknown, "flooded for between X and Y days" (later phase).
-- Undecided: which storm, which future metric, boundary vintage for historical joins.
+- In scope now: everything above plus the observed-pass replay, flood overlay per pass, per-barangay flood area (high and low confidence) and duration ranges.
+- Out of scope now: rainfall, lake level, exposure indices, photo upload, modelled frames between passes, storm attribution.
+- Terminology: barangay, PSGC, pass, observed vs modeled vs unknown, low confidence (water on cropland or wetland, often paddies), "flooded for between X and Y days".
+- Undecided: exposure index definition, boundary vintage for historical joins, whether to add track 142.
 
 ## Brand Commitments
 
@@ -48,13 +50,13 @@ Time and duration of flooding, with uncertainty built into the display, at baran
 ## Evidence on Hand
 
 - Research brief PDF and architecture plan in repo root.
-- 14 candidate barangay polygons (faeldon/philippines-json-maps), PSGC municipality code `0403411000`.
-- No storm observations, flood maps, photos, statistics, or user testimonials exist. None may be fabricated or implied.
+- 15 COD-AB v03 barangay polygons for Bay, PSGC municipality code `0403402000` (`public/data/PROVENANCE.md`).
+- Flood frames and per-barangay records derived from Sentinel-1 RTC (`scripts/floods.py`, `scripts/flood_summary.py`). No photos, statistics or testimonials exist. None may be fabricated or implied.
 
 ## Product Principles
 
 1. Never show what wasn't observed. Empty means unknown, not zero.
-2. The place comes first: Los Baños must be recognizable before anything else is explained.
+2. The place comes first: Bay must be recognisable before anything else is explained.
 3. Honesty is a feature to demonstrate, not a footnote.
 4. Barangay is the unit people act on.
 

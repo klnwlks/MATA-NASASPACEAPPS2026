@@ -1,8 +1,8 @@
 # Flood Rewind: Los Baños 3D map viewer plan
 
-**Status:** planning proposal, not an implementation.  
+**Status:** original plan for the geographic stage, written for Los Baños. Superseded on area and replay: the app now covers **Bay, Laguna** and replays observed Sentinel-1 passes (see `PRODUCT.md`). The constraints below still apply.  
 **Reference:** `Flood-Rewind-What-the-Typhoon-Left-Behind.pdf`.  
-**Decision:** build the geographic stage now; connect a real storm replay later. No water or flood rendering in this phase.
+**Decision (original):** build the geographic stage first; connect a real storm replay later.
 
 ## 1. Outcome and boundaries
 
@@ -27,7 +27,7 @@ The later replay is the project's goal, not a deliverable of this stage. A disab
 
 ## 2. Scientific and visual constraints that change the design
 
-1. **A day-by-day satellite replay is not guaranteed.** Sentinel-1 observations are irregular and may miss the peak. Later, timeline stops must be actual acquisition timestamps; a daily calendar, if ever used, must show missing days and identify modeled frames separately. Do not animate invented intermediate observations as fact.
+1. **There is no daily satellite replay.** Over Bay, Sentinel-1 track 32 passes every 12 days (until mid-2025) or mostly every 6 days (after), and may miss the peak. Timeline stops are actual acquisition timestamps with the gap to the previous pass shown; modeled frames, if ever added, must be identified separately. Do not animate invented intermediate observations as fact.
 2. **Flood extent is not flood depth.** SAR water classification plus GLO-30 elevation cannot, by themselves, establish water depth or a physically accurate 3D flood surface. Defer any depth claims until a defensible independent method and data exist.
 3. **GLO-30 is a surface model, not bare earth.** Its ~30 m cells can include vegetation and buildings. Adding footprint extrusions can visually double-count their height; neither the terrain nor the resulting building base is survey-grade. Do not read off elevations or use the mesh to calculate flood depth. Use modest or no vertical exaggeration and disclose any exaggeration.
 4. **Buildings are schematic.** OpenStreetMap coverage and height attributes vary. A default height is a visual approximation, not an observation; gaps are unknown rather than empty land. Buildings may not match historical storm dates.

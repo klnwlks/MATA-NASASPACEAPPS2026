@@ -16,8 +16,8 @@ export default function Navbar({ list, boundariesReady, onSelect }) {
         <Satellite aria-hidden size={16} />Observations: none loaded
       </p>
       <div className="relative">
-        <button type="button" aria-expanded={sources} onClick={() => setSources((s) => !s)} className="flex items-center gap-2 rounded-xl bg-ink px-3.5 py-2 text-sm font-medium text-white hover:bg-cobalt-ink">
-          <Database aria-hidden size={16} />Sources
+        <button type="button" aria-expanded={sources} onClick={() => setSources((s) => !s)} aria-label="Sources" className="flex items-center gap-2 rounded-xl bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-cobalt-ink sm:px-3.5">
+          <Database aria-hidden size={18} /><span className="hidden sm:inline">Sources</span>
         </button>
         {sources && <SourcesPanel onClose={() => setSources(false)} />}
       </div>

@@ -1,0 +1,45 @@
+# MATA: Tanaw — Design
+
+Decided 2026-11-14. Evidence boards in `.impeccable/mocks/decision/`.
+
+## Visual world (authority: `V3-model.png`)
+
+Golden-hour relief: steep oblique pitch (~60–65°) looking south from Laguna de Bay to Mount Makiling, warm hillshade, crisp extruded buildings, lake in the foreground. The UI floats over the full-bleed map as separate rounded cards: one full-width navbar, barangay card on the right, timeline pill at the bottom, map controls and a bearing/pitch readout at the lower left.
+
+Map palette (from the Alive Maps reference): land `#F2EFE0`, lake `#11B5AE`, mint park `#8ED9AF`, forest `#3E9B5A`, major road `#E8807F`.
+
+Known limit: MapLibre + GLO-30 30 m terrain can't match V3's painted canopy. Expect hillshade and extrusions, not forest texture.
+
+## Colour: Cobalt on Chalk
+
+| Token | Hex | Use |
+|---|---|---|
+| ink | `#0F1B33` | text, 16.4:1 on chalk |
+| muted | `#56607A` | secondary text |
+| cobalt | `#1F4FD8` | the only accent: active chips, selection line, label pill, focus |
+| cobalt-tint | `#E7EDFC` | status chips, empty-state wells; cobalt-ink text `#1F3FA8` |
+| chalk | `#FBFAF6` | cards, navbar |
+| page | `#F7F5EF` | page and app ground |
+| line | `#DDE1EA` | card borders, dividers |
+
+Selection: 5 px cobalt line over an 11 px white casing, with a ~25 % cobalt fill. Measured contrast of the blue line against each ground: land 5.7:1, mint 4.0:1, forest 1.9:1 (the white casing brings that to 3.5:1). On the lake, blue is 2.6:1 and the casing 2.5:1, both below the 3:1 target; acceptable only at the shoreline edge. Status colours (states only, never decoration): ok `#15826B`, warn `#B7791F`, fail `#C2412D`.
+
+## Typography: Geist family (`geist` npm 1.9.2, OFL)
+
+- Display (wordmark, barangay names, section titles): **Geist 500**. No heavy weights.
+- UI text: Geist 400, labels and chips 500.
+- Identifiers and readings (PSGC, bearing/pitch, counts): **Geist Mono** 400–500.
+
+## Voice: Field log
+
+Terse, label first, then the fact. An instrument reporting status.
+
+- Navbar: search `Barangay or PSGC` · status chip `Observations: none loaded` (never `0`: a zero reads as "no flooding") · `Sources`
+- Empty sidebar: `No barangay selected` / `14 barangays · Los Baños, Laguna. Select on map or list.`
+- Selected sidebar: rows `PSGC`, `Municipality`, `Geometry`; section `Observations` → `No storm observations loaded` / `Flood extent: not in this build. Empty ≠ dry.`
+- Timeline: `Replay · offline` / `Only observed acquisition dates will appear`
+- States: `Terrain · loading` (`GLO-30 tiles`), `Terrain · unavailable` (`Flat fallback. Elevation not rendered.`), `Boundaries · failed` (`Selection disabled.`)
+- Disclaimer: `Not an official hazard map`
+- Sources panel: `Elevation · GLO-30` / `Buildings · OSM` / `Boundaries · COD-AB`, one line each on the limits.
+
+Rule: any count about storm data says "none loaded", never 0.

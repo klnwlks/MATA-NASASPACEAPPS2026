@@ -20,6 +20,8 @@ export function buildStyle(origin) {
     },
     terrain: { source: 'dem', exaggeration: TERRAIN_EXAGGERATION },
     light: { anchor: 'map', color: '#FFE9C7', intensity: 0.45, position: [1.4, 250, 35] },
+    // Warm haze toward the horizon so steep pitches read as a landscape, not a cut-off sheet.
+    sky: { 'sky-color': '#9CC7EA', 'horizon-color': '#F5E6C8', 'fog-color': '#EFE8D6', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.35, 'atmosphere-blend': 0 },
     layers: [
       { id: 'land', type: 'background', paint: { 'background-color': C.land } },
       { id: 'relief', type: 'color-relief', source: 'shade', paint: { 'color-relief-color': ['interpolate', ['linear'], ['elevation'], 0, '#F2EFE0', 15, '#E9ECC6', 60, '#CFE29B', 200, '#9FD184', 450, '#66B86A', 800, '#3E9B5A', 1100, '#2B7D49'] } },

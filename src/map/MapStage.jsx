@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { buildStyle, HOME_VIEW, SHADOW_BUCKETS } from './style.js'
 import { addBoundaryLayers, setSelection } from './boundaries.js'
 import { addTreeLayer } from './trees.js'
+import { addWaterLayer, floodRise } from './water.js'
 import { applySun } from './sun.js'
 
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -74,6 +75,7 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
       addTreeLayer(map, `${window.location.origin}${import.meta.env.BASE_URL}data/trees.geojson`, 'buildings').catch((e) => console.error(e))
     })
     return () => {
+      water.current = null
       onMap(null)
       mapRef.current = null
       map.remove()
@@ -109,16 +111,15 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
 
   useEffect(() => setSelection(mapRef.current, selectedId), [selectedId])
 
-  // One draped image per observed date; the source is created once and its image swapped per frame.
+  // One water mesh for the whole run; each observed date swaps its mask and surface height.
+  const water = useRef(null)
   useEffect(() => {
     const map = mapRef.current
     const f = floods?.frames[frame]
     if (!map || !f) return
     const apply = () => {
-      const src = map.getSource('flood')
-      if (src) return src.updateImage({ url: f.url, coordinates: floods.corners })
-      map.addSource('flood', { type: 'image', url: f.url, coordinates: floods.corners })
-      map.addLayer({ id: 'flood', type: 'raster', source: 'flood', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } }, 'night')
+      water.current ??= addWaterLayer(map, floods.corners, `${window.location.origin}${import.meta.env.BASE_URL}`).catch((e) => console.error(e))
+      water.current.then((w) => w?.set(f.url, floodRise(floods.lake, f.utc)))
     }
     if (map.loaded()) apply()
     else map.once('load', apply)

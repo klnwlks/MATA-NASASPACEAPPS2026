@@ -7,6 +7,9 @@ const kind = (...k) => ['in', ['get', 'kind'], ['literal', k]]
 // Base-2 growth keeps a road's on-screen width proportional to the ground it covers.
 const width = (z12, z18) => ['interpolate', ['exponential', 2], ['zoom'], 12, z12, 18, z18]
 const ROUND = { 'line-cap': 'round', 'line-join': 'round' }
+const ROOF_M = 0.4
+const HEIGHT = ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M]
+const BUILDING = ['==', ['get', 'kind'], 'building']
 
 const dem = (root) => ({ type: 'raster-dem', encoding: 'terrarium', tileSize: 256, minzoom: 8, maxzoom: 12, tiles: [`${root}data/terrain/{z}/{x}/{y}.png`], bounds: [121.091, 14.03, 121.347, 14.278] })
 
@@ -24,7 +27,8 @@ export function buildStyle(origin) {
       imagery: { type: 'raster', tileSize: 256, maxzoom: 15, bounds: [121.091, 14.03, 121.347, 14.278], tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg'] },
     },
     terrain: { source: 'dem', exaggeration: TERRAIN_EXAGGERATION },
-    light: { anchor: 'map', color: '#FFE9C7', intensity: 0.45, position: [1.4, 250, 35] },
+    // Low intensity keeps walls bright plaster instead of muddy; faces still read by direction.
+    light: { anchor: 'map', color: '#FFFFFF', intensity: 0.25, position: [1.2, 210, 30] },
     // Warm haze toward the horizon so steep pitches read as a landscape, not a cut-off sheet.
     sky: { 'sky-color': '#9CC7EA', 'horizon-color': '#F5E6C8', 'fog-color': '#EFE8D6', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.35, 'atmosphere-blend': 0 },
     layers: [
@@ -44,8 +48,13 @@ export function buildStyle(origin) {
       { id: 'roads-major-case', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': '#B9575A', 'line-width': width(1.6, 40) } },
       { id: 'roads-minor', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 13, filter: kind('minor_road'), layout: ROUND, paint: { 'line-color': '#FFFDF7', 'line-width': width(0.3, 18) } },
       { id: 'roads-major', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': C.road, 'line-width': width(1, 34) } },
-      // Tone varies by feature id only, like a painted model; it encodes no attribute.
-      { id: 'buildings', type: 'fill-extrusion', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: ['==', ['get', 'kind'], 'building'], paint: { 'fill-extrusion-color': ['match', ['%', ['to-number', ['id'], 0], 5], 0, '#F4EDE1', 1, '#EADFCB', 2, '#E9D3C0', 3, '#DCD6CB', '#F1E2C6'], 'fill-extrusion-height': ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 'fill-extrusion-opacity': 0.97, 'fill-extrusion-vertical-gradient': true } },
+      // Grounding: a blurred dark rim (contact occlusion) and a translucent copy pushed away from the light (cast shadow).
+      { id: 'building-shadow', type: 'fill', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: BUILDING, paint: { 'fill-color': '#3A3220', 'fill-opacity': 0.22, 'fill-translate-anchor': 'map', 'fill-translate': ['interpolate', ['exponential', 2], ['zoom'], 15, ['literal', [1.5, -1.5]], 18, ['literal', [12, -12]]] } },
+      { id: 'building-ao', type: 'line', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: BUILDING, paint: { 'line-color': '#3A3220', 'line-opacity': 0.5, 'line-width': width(0.25, 14), 'line-blur': width(0.25, 14) } },
+      // Plaster walls with a thin roof cap in muted local roof colours (terracotta, galvanised, painted metal).
+      // Colour varies by feature id only, like a painted model; it encodes no attribute.
+      { id: 'buildings', type: 'fill-extrusion', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: BUILDING, paint: { 'fill-extrusion-color': ['match', ['%', ['to-number', ['id'], 0], 3], 0, '#F7F3EA', 1, '#EFE9DC', '#F3EDE3'], 'fill-extrusion-height': ['-', HEIGHT, 0.01] } },
+      { id: 'roofs', type: 'fill-extrusion', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: BUILDING, paint: { 'fill-extrusion-color': ['match', ['%', ['to-number', ['id'], 0], 7], 0, '#C98A6E', 1, '#D59C7E', 2, '#B9C0C6', 3, '#93A9C0', 4, '#CDD1D3', 5, '#A9B89A', '#D8CDBD'], 'fill-extrusion-base': ['-', HEIGHT, ROOF_M], 'fill-extrusion-height': HEIGHT } },
     ],
   }
 }

@@ -97,7 +97,7 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, o
     const map = mapRef.current
     if (!map?.isStyleLoaded()) return
     const vis = (id, on) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
-    vis('buildings', show.buildings)
+    for (const id of ['buildings', 'roofs', 'building-shadow', 'building-ao']) vis(id, show.buildings)
     vis('bgy-line', show.boundaries)
     vis('bgy-label', show.boundaries)
   }, [show, barangays])

@@ -48,6 +48,9 @@ export function buildStyle(origin) {
       { id: 'roads-major-case', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': '#B9575A', 'line-width': width(1.6, 40) } },
       { id: 'roads-minor', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 13, filter: kind('minor_road'), layout: ROUND, paint: { 'line-color': '#FFFDF7', 'line-width': width(0.3, 18) } },
       { id: 'roads-major', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': C.road, 'line-width': width(1, 34) } },
+      // Street detail from z16: pale kerbs either side of major roads and a dashed centre line.
+      { id: 'roads-major-kerb', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 16, filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': '#F4EDE1', 'line-width': width(0.1, 3), 'line-gap-width': width(1, 34) } },
+      { id: 'roads-major-centre', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 16, filter: kind('major_road', 'highway'), paint: { 'line-color': '#FFFBF0', 'line-width': width(0.05, 1.5), 'line-dasharray': [6, 6] } },
       // Grounding: a blurred dark rim (contact occlusion) and a translucent copy pushed away from the light (cast shadow).
       { id: 'building-shadow', type: 'fill', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: BUILDING, paint: { 'fill-color': '#3A3220', 'fill-opacity': 0.22, 'fill-translate-anchor': 'map', 'fill-translate': ['interpolate', ['exponential', 2], ['zoom'], 15, ['literal', [1.5, -1.5]], 18, ['literal', [12, -12]]] } },
       { id: 'building-ao', type: 'line', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: BUILDING, paint: { 'line-color': '#3A3220', 'line-opacity': 0.5, 'line-width': width(0.25, 14), 'line-blur': width(0.25, 14) } },

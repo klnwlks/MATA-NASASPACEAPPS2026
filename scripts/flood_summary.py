@@ -21,8 +21,10 @@ from rasterio.warp import transform_geom
 SRC, OUT = "/tmp/mata-floods/classes.npz", "public/data/floods"
 FLOOR_HA, NOISE_FACTOR, MIN_VALID = 2.0, 3.0, 0.5
 NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW = range(5)
-# RGBA per class: unknown is a pale grey veil (never drawn as dry), flood is cobalt, low confidence a lighter hatch-free tint.
-PALETTE = {NODATA: (120, 120, 120, 70), DRY: (0, 0, 0, 0), PERMANENT: (0, 0, 0, 0), FLOOD: (31, 79, 216, 200), FLOOD_LOW: (126, 163, 240, 140)}
+# RGBA per class: unknown is a pale grey veil (never drawn as dry); flood is cyan, apart from the cobalt selection;
+# low confidence is the same cyan in diagonal stripes, so it differs by pattern as well as by colour.
+PALETTE = {NODATA: (120, 120, 120, 70), DRY: (0, 0, 0, 0), PERMANENT: (0, 0, 0, 0), FLOOD: (14, 157, 184, 215), FLOOD_LOW: (14, 157, 184, 170)}
+STRIPE_PX = 6
 
 
 def day(iso):
@@ -31,21 +33,25 @@ def day(iso):
 
 def main():
     z = np.load(SRC)
-    classes, dates, T = z["classes"], [str(d) for d in z["dates"]], Affine(*z["transform"])
+    utc = lambda d: str(d)[:19] + "Z"  # whole seconds: every browser parses this ISO form
+    classes, dates, T = z["classes"], [utc(d) for d in z["dates"]], Affine(*z["transform"])
     n, h, w = classes.shape
     px_ha = (abs(T.a) * 0.97) ** 2 / 1e4  # mercator pixel to ground hectares at 14.1 N
     feats = json.load(open("public/data/barangays.geojson"))["features"]
     ids = rasterize([(transform_geom("EPSG:4326", "EPSG:3857", f["geometry"]), i + 1) for i, f in enumerate(feats)], out_shape=(h, w), transform=T, dtype="int16")
     in_muni = ids > 0
-    dry_ref = {str(d) for d in z["dry_season"]}
+    dry_ref = {utc(d) for d in z["dry_season"]}
 
     os.makedirs(OUT, exist_ok=True)
     lut = np.zeros((256, 4), "uint8")
     for k, rgba in PALETTE.items():
         lut[k] = rgba
     frames = []
+    rows, cols = np.indices((h, w))
+    gap_stripe = (rows + cols) % STRIPE_PX >= STRIPE_PX // 2
     for i, d in enumerate(dates):
         rgba = lut[classes[i]]
+        rgba[(classes[i] == FLOOD_LOW) & gap_stripe] = 0
         rgba[~in_muni] = 0  # frames show the municipality only; outside it nothing was assessed for this product
         name = f"{d[:10].replace('-', '')}.png"
         Image.fromarray(rgba, "RGBA").save(f"{OUT}/{name}", optimize=True)
@@ -71,7 +77,7 @@ def main():
             before = next((k for k in range(i - 1, -1, -1) if state[k] == 0), None)
             after = next((k for k in range(j + 1, n) if state[k] == 0), None)
             gap_unknown = any(state[k] == -1 for k in range(0 if before is None else before + 1, n if after is None else after))
-            episodes.append({"first": dates[i][:10], "last": dates[j][:10], "observations": j - i + 1, "minDays": (day(dates[j]) - day(dates[i])).days,
+            episodes.append({"first": dates[i], "last": dates[j], "observations": j - i + 1, "minDays": (day(dates[j]) - day(dates[i])).days,
                              "maxDays": None if before is None or after is None else (day(dates[after]) - day(dates[before])).days, "unknownInside": gap_unknown})
             i = j + 1
         barangays[f["properties"]["psgc"]] = {"name": f["properties"]["name"], "areaHa": round(float(m.sum() * px_ha), 1), "noiseHa": round(noise, 2),

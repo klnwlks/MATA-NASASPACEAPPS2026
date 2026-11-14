@@ -3,6 +3,7 @@ const MESSAGES = {
   basemap: { loading: ['Buildings and roads · loading', 'OSM extract'], failed: ['Buildings and roads · failed', 'Basemap not drawn.'] },
   imagery: { failed: ['Imagery · unavailable', 'EOX tiles unreachable. Vector colours only.'] },
   boundaries: { loading: ['Boundaries · loading', 'COD-AB polygons'], failed: ['Boundaries · failed', 'Selection disabled.'] },
+  floods: { loading: ['Observations · loading', 'Sentinel-1 frames'], failed: ['Observations · unavailable', 'No flood frames. Empty ≠ dry.'] },
   webgl: { failed: ['WebGL · unavailable', "This browser can't draw the 3D map."] },
 }
 const tone = { loading: 'text-muted', failed: 'text-fail' }

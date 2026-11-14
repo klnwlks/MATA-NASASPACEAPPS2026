@@ -25,3 +25,16 @@ export async function loadBarangays() {
   const municipalities = [...munis.values()].map((m) => ({ ...m, center: [(m.bounds[0][0] + m.bounds[1][0]) / 2, (m.bounds[0][1] + m.bounds[1][1]) / 2] }))
   return { geojson, list, municipalities, bounds: bbox(all) }
 }
+
+// Observed Sentinel-1 frames and per-barangay flood records, precomputed by scripts/floods.py and flood_summary.py.
+export async function loadFloods() {
+  const res = await fetch(`${import.meta.env.BASE_URL}data/floods/manifest.json`)
+  if (!res.ok) throw new Error(`floods ${res.status}`)
+  const m = await res.json()
+  return { ...m, frames: m.frames.map((f) => ({ ...f, url: `${import.meta.env.BASE_URL}data/floods/${f.file}` })) }
+}
+
+const PHT = new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+const DAY = new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', day: 'numeric', month: 'short', year: 'numeric' })
+export const phtTime = (utc) => PHT.format(new Date(utc))
+export const shortDate = (utc) => DAY.format(new Date(utc))

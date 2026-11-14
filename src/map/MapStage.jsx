@@ -14,7 +14,7 @@ const padding = () =>
     : { top: 88, bottom: 150, left: 16, right: 16 }
 const dur = (ms) => (reduceMotion() ? 0 : ms)
 
-export default function MapStage({ barangays, selectedId, show, fit, homeTick, time, onSelect, onMunicipality, onStatus, onMap }) {
+export default function MapStage({ barangays, floods, frame, selectedId, show, fit, homeTick, time, onSelect, onMunicipality, onStatus, onMap }) {
   const el = useRef(null)
   const mapRef = useRef(null)
   const live = useRef({})
@@ -91,7 +91,7 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, t
       for (const m of barangays.municipalities) {
         const pin = document.createElement('button')
         pin.type = 'button'
-        pin.setAttribute('aria-label', `${m.name} storm events`)
+        pin.setAttribute('aria-label', `${m.name} observed flood runs`)
         pin.className = 'grid size-9 place-items-center rounded-full border-2 border-white bg-cobalt text-white shadow-float hover:bg-cobalt-ink'
         pin.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>'
         // Keep the map from turning pin presses into a barangay click underneath.
@@ -108,6 +108,21 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, t
   }, [barangays])
 
   useEffect(() => setSelection(mapRef.current, selectedId), [selectedId])
+
+  // One draped image per observed date; the source is created once and its image swapped per frame.
+  useEffect(() => {
+    const map = mapRef.current
+    const f = floods?.frames[frame]
+    if (!map || !f) return
+    const apply = () => {
+      const src = map.getSource('flood')
+      if (src) return src.updateImage({ url: f.url, coordinates: floods.corners })
+      map.addSource('flood', { type: 'image', url: f.url, coordinates: floods.corners })
+      map.addLayer({ id: 'flood', type: 'raster', source: 'flood', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } }, 'night')
+    }
+    if (map.loaded()) apply()
+    else map.once('load', apply)
+  }, [floods, frame])
 
   useEffect(() => {
     const map = mapRef.current

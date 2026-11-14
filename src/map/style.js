@@ -39,8 +39,8 @@ export function buildStyle(origin) {
       { id: 'town', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('residential', 'commercial', 'industrial', 'school', 'college', 'university'), paint: { 'fill-color': C.town, 'fill-opacity': 0.7 } },
       { id: 'park', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('park', 'nature_reserve', 'grass', 'garden'), paint: { 'fill-color': C.park, 'fill-opacity': 0.8 } },
       { id: 'forest', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('wood', 'forest'), paint: { 'fill-color': C.forest, 'fill-opacity': 0.3 } },
-      // Real canopy and paddies from afar; up close it stays at half strength as ground texture under the vector colours.
-      { id: 'imagery', type: 'raster', source: 'imagery', paint: { 'raster-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.75, 15, 0.6, 18, 0.5], 'raster-saturation': 0.25, 'raster-brightness-min': 0.14 } },
+      // Real canopy and paddies from afar. Gone by z15.5: past that its 10 m pixels just blur the vector detail.
+      { id: 'imagery', type: 'raster', source: 'imagery', paint: { 'raster-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.75, 14.5, 0.4, 15.5, 0], 'raster-saturation': 0.25, 'raster-brightness-min': 0.14 } },
       { id: 'water', type: 'fill', source: 'base', 'source-layer': 'water', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': C.lake } },
       { id: 'rivers', type: 'line', source: 'base', 'source-layer': 'water', filter: kind('river', 'stream'), paint: { 'line-color': C.lake, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 15, 3] } },
       { id: 'paths', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 15, filter: kind('path'), paint: { 'line-color': '#C9B48C', 'line-width': width(0.2, 4), 'line-dasharray': [2, 1] } },

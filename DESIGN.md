@@ -8,7 +8,7 @@ Golden-hour relief: steep oblique pitch (~60–65°) looking south from Laguna d
 
 Map palette (from the Alive Maps reference): land `#F2EFE0`, lake `#11B5AE`, mint park `#8ED9AF`, forest `#3E9B5A`, major road `#E8807F`.
 
-Canopy and ground: Sentinel-2 cloudless 2024 (EOX) imagery on the terrain gives forest and paddy texture zoomed out and stays at half strength up close as ground texture. From z14, low-poly three.js trees (instanced, two levels of detail) stand on the terrain; mapped OSM trees and decorative fill share one look, and Sources discloses the fill. Buildings are plaster-white with a thin roof cap in muted roof colours, grounded by a blurred contact rim and an offset shadow. Over imagery, unselected barangay lines lose contrast on dark forest; the selection casing still holds.
+Canopy and ground: Sentinel-2 cloudless 2024 (EOX) imagery on the terrain gives forest and paddy texture zoomed out and fades out by z15.5, before its 10 m pixels blur street-level detail. From z14, low-poly three.js trees (instanced, two levels of detail) stand on the terrain; mapped OSM trees and decorative fill share one look, and Sources discloses the fill. Buildings are plaster-white with a thin roof cap in muted roof colours, grounded by a blurred contact rim and an offset shadow. Over imagery, unselected barangay lines lose contrast on dark forest; the selection casing still holds.
 
 ## Colour: Cobalt on Chalk
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Building2, Mountain, Satellite, Shapes, Trees, X } from 'lucide-react'
+import { Building2, Layers, Mountain, Satellite, Shapes, Trees, Waves, X } from 'lucide-react'
 import { SCHEMATIC_HEIGHT_M, TERRAIN_EXAGGERATION } from '../map/style.js'
 
 const rows = [
@@ -9,6 +9,8 @@ const rows = [
   [Trees, 'bg-mint-tint text-mint-ink', 'Trees · OSM + fill', '2,068 trees are mapped in OpenStreetMap. The rest are decorative fill scattered inside mapped woods and parks, not observed trees. Shape and size are schematic.'],
   [Shapes, 'bg-cobalt-tint text-cobalt-ink', 'Boundaries · COD-AB', 'NAMRIA and PSA, via OCHA, version 3 of 2025-02-13. Reference lines, not a legal survey.'],
   [Satellite, 'bg-cobalt-tint text-cobalt-ink', 'Floods · Sentinel-1', 'Radar passes every 6 or 12 days, not daily, about 05:47. Open water only: buildings and tree cover hide floodwater and are shown as unknown, never dry. Paddies on cropland are marked low confidence.'],
+  [Layers, 'bg-cobalt-tint text-cobalt-ink', 'Second opinions · OPERA, NISAR', 'NASA OPERA water maps from the same passes, and NISAR L-band (sees through canopy) from June 2026 only. Each is judged against its own noise.'],
+  [Waves, 'bg-cobalt-tint text-cobalt-ink', 'Lake level · DAHITI altimetry', 'Laguna de Bay surface height every 2 weeks or so. Context for lakeshore flooding, not a flood map.'],
 ]
 
 export default function SourcesPanel({ onClose }) {

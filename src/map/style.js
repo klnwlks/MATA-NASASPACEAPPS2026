@@ -10,6 +10,15 @@ const ROUND = { 'line-cap': 'round', 'line-join': 'round' }
 const ROOF_M = 0.4
 const HEIGHT = ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M]
 const BUILDING = ['==', ['get', 'kind'], 'building']
+const AOI = [121.091, 14.03, 121.347, 14.278]
+// [layer id, filter, representative height in m]: one shadow offset per height band (see sun.js).
+export const SHADOW_BUCKETS = [
+  ['building-shadow-low', ['<', HEIGHT, 10], 6],
+  ['building-shadow-mid', ['all', ['>=', HEIGHT, 10], ['<', HEIGHT, 25]], 15],
+  ['building-shadow-high', ['>=', HEIGHT, 25], 35],
+]
+// Draped layers are cached in terrain textures that re-render once per change; a paint transition would freeze mid-fade.
+const NOW = { duration: 0, delay: 0 }
 
 const dem = (root) => ({ type: 'raster-dem', encoding: 'terrarium', tileSize: 256, minzoom: 8, maxzoom: 12, tiles: [`${root}data/terrain/{z}/{x}/{y}.png`], bounds: [121.091, 14.03, 121.347, 14.278] })
 
@@ -24,7 +33,8 @@ export function buildStyle(origin) {
       dem: dem(root),
       shade: dem(root), // MapLibre advises a separate source for hillshade and terrain
       // Sentinel-2 cloudless 2024 by EOX: CC BY-NC-SA 4.0, non-commercial only. A 2024 composite, not storm-date imagery.
-      imagery: { type: 'raster', tileSize: 256, maxzoom: 15, bounds: [121.091, 14.03, 121.347, 14.278], tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg'] },
+      imagery: { type: 'raster', tileSize: 256, maxzoom: 15, bounds: AOI, tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg'] },
+      night: { type: 'geojson', data: { type: 'Feature', id: 1, properties: {}, geometry: { type: 'Polygon', coordinates: [[[AOI[0] - 0.5, AOI[1] - 0.5], [AOI[2] + 0.5, AOI[1] - 0.5], [AOI[2] + 0.5, AOI[3] + 0.5], [AOI[0] - 0.5, AOI[3] + 0.5], [AOI[0] - 0.5, AOI[1] - 0.5]]] } } },
     },
     terrain: { source: 'dem', exaggeration: TERRAIN_EXAGGERATION },
     // Low intensity keeps walls bright plaster instead of muddy; faces still read by direction.
@@ -34,7 +44,7 @@ export function buildStyle(origin) {
     layers: [
       { id: 'land', type: 'background', paint: { 'background-color': C.land } },
       { id: 'relief', type: 'color-relief', source: 'shade', paint: { 'color-relief-color': ['interpolate', ['linear'], ['elevation'], 0, '#F2EFE0', 15, '#E9ECC6', 60, '#CFE29B', 200, '#9FD184', 450, '#66B86A', 800, '#3E9B5A', 1100, '#2B7D49'] } },
-      { id: 'hillshade', type: 'hillshade', source: 'shade', paint: { 'hillshade-exaggeration': 0.7, 'hillshade-illumination-direction': 250, 'hillshade-shadow-color': '#5E4A22', 'hillshade-highlight-color': '#FFF6DD', 'hillshade-accent-color': '#D9A441' } },
+      { id: 'hillshade', type: 'hillshade', source: 'shade', paint: { 'hillshade-exaggeration': 0.7, 'hillshade-illumination-anchor': 'map', 'hillshade-illumination-direction': 250, 'hillshade-shadow-color': '#5E4A22', 'hillshade-highlight-color': '#FFF6DD', 'hillshade-accent-color': '#D9A441' } },
       { id: 'farm', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('farmland', 'farmyard', 'orchard'), paint: { 'fill-color': C.farm, 'fill-opacity': 0.55 } },
       { id: 'town', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('residential', 'commercial', 'industrial', 'school', 'college', 'university'), paint: { 'fill-color': C.town, 'fill-opacity': 0.7 } },
       { id: 'park', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('park', 'nature_reserve', 'grass', 'garden'), paint: { 'fill-color': C.park, 'fill-opacity': 0.8 } },
@@ -51,8 +61,10 @@ export function buildStyle(origin) {
       // Street detail from z16: pale kerbs either side of major roads and a dashed centre line.
       { id: 'roads-major-kerb', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 16, filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': '#F4EDE1', 'line-width': width(0.1, 3), 'line-gap-width': width(1, 34) } },
       { id: 'roads-major-centre', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 16, filter: kind('major_road', 'highway'), paint: { 'line-color': '#FFFBF0', 'line-width': width(0.05, 1.5), 'line-dasharray': [6, 6] } },
-      // Grounding: a blurred dark rim (contact occlusion) and a translucent copy pushed away from the light (cast shadow).
-      { id: 'building-shadow', type: 'fill', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: BUILDING, paint: { 'fill-color': '#3A3220', 'fill-opacity': 0.22, 'fill-translate-anchor': 'map', 'fill-translate': ['interpolate', ['exponential', 2], ['zoom'], 15, ['literal', [1.5, -1.5]], 18, ['literal', [12, -12]]] } },
+      // Dusk and night: a blue wash over the ground; extrusions and trees darken through their own lights.
+      { id: 'night', type: 'fill', source: 'night', paint: { 'fill-color': '#0B1A3A', 'fill-opacity': 0, 'fill-opacity-transition': NOW } },
+      // Grounding: a translucent copy pushed away from the sun per height band (cast shadow) and a blurred dark rim (contact occlusion).
+      ...SHADOW_BUCKETS.map(([id, filter]) => ({ id, type: 'fill', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: ['all', BUILDING, filter], paint: { 'fill-color': '#2E2A3A', 'fill-opacity': 0, 'fill-opacity-transition': NOW, 'fill-translate-anchor': 'map', 'fill-translate-transition': NOW } })),
       { id: 'building-ao', type: 'line', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: BUILDING, paint: { 'line-color': '#3A3220', 'line-opacity': 0.5, 'line-width': width(0.25, 14), 'line-blur': width(0.25, 14) } },
       // Plaster walls with a thin roof cap in muted local roof colours (terracotta, galvanised, painted metal).
       // Colour varies by feature id only, like a painted model; it encodes no attribute.

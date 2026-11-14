@@ -18,6 +18,8 @@ export default function Credits() {
           <p className="text-xs text-muted">Contains modified Copernicus DEM GLO-30</p>
           <p className="text-xs text-muted">Sentinel-2 cloudless 2024 by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0</p>
           <p className="text-xs text-muted">NAMRIA, PSA via OCHA COD-AB (CC BY-IGO)</p>
+          <p className="text-xs text-muted">Contains modified Copernicus Sentinel-1 data 2024–2026, RTC via Microsoft Planetary Computer</p>
+          <p className="text-xs text-muted">© ESA WorldCover project 2021, CC BY 4.0</p>
         </section>
       )}
       <button

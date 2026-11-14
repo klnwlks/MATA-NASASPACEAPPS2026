@@ -4,6 +4,9 @@ export const HOME_VIEW = { bearing: 180, pitch: 62 }
 
 const C = { land: '#F2EFE0', lake: '#5C95F2', park: '#8ED9AF', forest: '#3E9B5A', road: '#E8807F', farm: '#DCE7A6', town: '#EFE4CF' }
 const kind = (...k) => ['in', ['get', 'kind'], ['literal', k]]
+// Base-2 growth keeps a road's on-screen width proportional to the ground it covers.
+const width = (z12, z18) => ['interpolate', ['exponential', 2], ['zoom'], 12, z12, 18, z18]
+const ROUND = { 'line-cap': 'round', 'line-join': 'round' }
 
 const dem = (root) => ({ type: 'raster-dem', encoding: 'terrarium', tileSize: 256, minzoom: 8, maxzoom: 12, tiles: [`${root}data/terrain/{z}/{x}/{y}.png`], bounds: [121.091, 14.03, 121.347, 14.278] })
 
@@ -32,8 +35,11 @@ export function buildStyle(origin) {
       { id: 'forest', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('wood', 'forest'), paint: { 'fill-color': C.forest, 'fill-opacity': 0.3 } },
       { id: 'water', type: 'fill', source: 'base', 'source-layer': 'water', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': C.lake } },
       { id: 'rivers', type: 'line', source: 'base', 'source-layer': 'water', filter: kind('river', 'stream'), paint: { 'line-color': C.lake, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 15, 3] } },
-      { id: 'roads-minor', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 13, filter: kind('minor_road'), paint: { 'line-color': '#FFFFFF', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 0.5, 17, 4] } },
-      { id: 'roads-major', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), paint: { 'line-color': C.road, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 17, 7] } },
+      { id: 'paths', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 15, filter: kind('path'), paint: { 'line-color': '#C9B48C', 'line-width': width(0.2, 4), 'line-dasharray': [2, 1] } },
+      { id: 'roads-minor-case', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 13, filter: kind('minor_road'), layout: ROUND, paint: { 'line-color': '#D9CFB8', 'line-width': width(0.6, 22) } },
+      { id: 'roads-major-case', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': '#B9575A', 'line-width': width(1.6, 40) } },
+      { id: 'roads-minor', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 13, filter: kind('minor_road'), layout: ROUND, paint: { 'line-color': '#FFFDF7', 'line-width': width(0.3, 18) } },
+      { id: 'roads-major', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': C.road, 'line-width': width(1, 34) } },
       { id: 'buildings', type: 'fill-extrusion', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: ['==', ['get', 'kind'], 'building'], paint: { 'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 0, '#FBF3E4', 8, '#F7E0B4', 16, '#F0BE6E', 30, '#E48F45'], 'fill-extrusion-height': ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 'fill-extrusion-opacity': 0.97, 'fill-extrusion-vertical-gradient': true } },
     ],
   }

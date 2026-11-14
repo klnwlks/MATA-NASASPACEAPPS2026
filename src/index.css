@@ -24,6 +24,14 @@
   --color-chalk: #fbfaf6;
   --color-page: #f7f5ef;
   --color-line: #dde1ea;
+  --color-coral: #e8807f;
+  --color-coral-ink: #a8372f;
+  --color-coral-tint: #fce9e6;
+  --color-mint-ink: #0f6b58;
+  --color-mint-tint: #dcf3ea;
+  --color-amber-ink: #8a5a0b;
+  --color-amber-tint: #fcefd0;
+  --shadow-float: 0 12px 32px -12px rgb(15 27 51 / 0.4), 0 2px 6px rgb(15 27 51 / 0.08);
   --color-ok: #15826b;
   --color-warn: #b7791f;
   --color-fail: #c2412d;

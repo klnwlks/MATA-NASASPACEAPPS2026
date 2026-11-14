@@ -10,7 +10,7 @@ const ROUND = { 'line-cap': 'round', 'line-join': 'round' }
 const ROOF_M = 0.4
 const HEIGHT = ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M]
 const BUILDING = ['==', ['get', 'kind'], 'building']
-const AOI = [121.091, 14.03, 121.347, 14.278]
+const AOI = [121.125, 14.002, 121.382, 14.279] // terrain tilejson bounds, rounded outward
 // [layer id, filter, representative height in m]: one shadow offset per height band (see sun.js).
 export const SHADOW_BUCKETS = [
   ['building-shadow-low', ['<', HEIGHT, 10], 6],
@@ -20,7 +20,7 @@ export const SHADOW_BUCKETS = [
 // Draped layers are cached in terrain textures that re-render once per change; a paint transition would freeze mid-fade.
 const NOW = { duration: 0, delay: 0 }
 
-const dem = (root) => ({ type: 'raster-dem', encoding: 'terrarium', tileSize: 256, minzoom: 8, maxzoom: 12, tiles: [`${root}data/terrain/{z}/{x}/{y}.png`], bounds: [121.091, 14.03, 121.347, 14.278] })
+const dem = (root) => ({ type: 'raster-dem', encoding: 'terrarium', tileSize: 256, minzoom: 8, maxzoom: 12, tiles: [`${root}data/terrain/{z}/{x}/{y}.png`], bounds: AOI })
 
 // Served from this origin with no keys, except the optional EOX imagery, which degrades to vector colours offline.
 export function buildStyle(origin) {
@@ -29,7 +29,7 @@ export function buildStyle(origin) {
     version: 8,
     glyphs: `${root}fonts/{fontstack}/{range}.pbf`,
     sources: {
-      base: { type: 'vector', url: `pmtiles://${root}data/losbanos.pmtiles` },
+      base: { type: 'vector', url: `pmtiles://${root}data/basemap.pmtiles` },
       dem: dem(root),
       shade: dem(root), // MapLibre advises a separate source for hillshade and terrain
       // Sentinel-2 cloudless 2024 by EOX: CC BY-NC-SA 4.0, non-commercial only. A 2024 composite, not storm-date imagery.

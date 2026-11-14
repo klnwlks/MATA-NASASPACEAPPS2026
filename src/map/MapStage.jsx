@@ -30,7 +30,7 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, t
       map = new Map({
         container: el.current,
         style: buildStyle(window.location.origin),
-        center: [121.22, 14.17],
+        center: [121.25, 14.14],
         zoom: 11,
         ...HOME_VIEW,
         maxPitch: 80,
@@ -137,7 +137,7 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, t
 
   return (
     <div className="absolute inset-0">
-      <div ref={el} className="h-full w-full" role="region" aria-label="Map of Los Baños, Laguna" />
+      <div ref={el} className="h-full w-full" role="region" aria-label="Map of Bay, Laguna" />
     </div>
   )
 }

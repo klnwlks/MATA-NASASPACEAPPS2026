@@ -3,7 +3,7 @@
 Two kinds, kept apart so the map can draw them differently:
   k=1  OSM `natural=tree` points, as mapped, across the whole AOI.
   k=0  decorative fill: seeded random points inside mapped wood, forest, reserve, park and garden polygons,
-       within Los Baños plus a small buffer. Not observed trees; only texture for land OSM marks as green.
+       within the municipality plus a small buffer. Not observed trees; only texture for land OSM marks as green.
 Each point carries its ground elevation in metres, sampled from the app's own terrain tiles (z12), so trees sit
 on the rendered surface without querying terrain at runtime.
 Run after the PMTiles extract, boundaries.py and terrain.py: .venv/bin/python scripts/trees.py
@@ -20,9 +20,9 @@ from shapely.geometry import shape
 from shapely.ops import unary_union
 from PIL import Image
 
-SRC = "public/data/losbanos.pmtiles"
+SRC = "public/data/basemap.pmtiles"
 OUT = "public/data/trees.geojson"
-BOUNDS = (121.091, 14.03, 121.347, 14.278)  # same AOI as terrain
+BOUNDS = tuple(json.load(open("public/data/terrain/tilejson.json"))["bounds"])  # same AOI as terrain
 Z, EXTENT = 15, 4096
 # Fill trees per hectare by landuse kind: enough to read as canopy at z15+, small enough to ship as one file.
 DENSITY = {"wood": 25, "forest": 25, "nature_reserve": 10, "park": 8, "garden": 6}

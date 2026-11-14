@@ -1,4 +1,4 @@
-"""Build Terrarium-encoded raster-dem tiles from Copernicus GLO-30 for the Los Baños AOI.
+"""Build Terrarium-encoded raster-dem tiles from Copernicus GLO-30 for the municipality AOI (barangays.geojson plus buffer).
 
 Reads the public COG by HTTP range requests (no AWS account).
 Run after boundaries.py: .venv/bin/python scripts/terrain.py

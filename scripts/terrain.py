@@ -13,10 +13,12 @@ from rasterio.enums import Resampling
 from rasterio.transform import from_bounds
 from rasterio.warp import reproject
 from PIL import Image
+from scipy.ndimage import gaussian_filter
 
 BUFFER_DEG = 0.08
 MIN_Z, MAX_Z = 8, 12
 TILE = 256
+SMOOTH_SIGMA_PX = 2  # source cells (~60 m): GLO-30 is a surface model, canopy and roofs read as pixel noise
 ORIGIN = 20037508.342789244
 OUT = "public/data/terrain"
 COG = "/vsicurl/" + "ht" + "tps://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N14_00_E121_00_DEM/Copernicus_DSM_COG_10_N14_00_E121_00_DEM.tif"
@@ -61,6 +63,7 @@ with rasterio.open(COG) as src:
     assert b.left <= w and b.bottom <= s and b.right >= e and b.top >= n, "AOI exceeds single GLO-30 tile"
     nodata = src.nodata
     data = src.read(1, masked=True).astype("float32").filled(np.nan)
+    data = gaussian_filter(data, SMOOTH_SIGMA_PX, mode="nearest")
     print("DEM", data.shape, "nodata", nodata, "range", np.nanmin(data), np.nanmax(data))
     for z in range(MIN_Z, MAX_Z + 1):
         x0, y1 = tile_xy(w, s, z)

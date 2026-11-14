@@ -4,7 +4,7 @@ import { Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { buildStyle, HOME_VIEW } from './style.js'
 import { addBoundaryLayers, setSelection } from './boundaries.js'
-import { addTreeLayers } from './trees.js'
+import { addTreeLayer } from './trees.js'
 
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const padding = () =>
@@ -69,7 +69,7 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, o
     })
     map.on('load', () => {
       onMap(map)
-      addTreeLayers(map, `${window.location.origin}${import.meta.env.BASE_URL}data/trees.geojson`, 'buildings').catch((e) => console.error(e))
+      addTreeLayer(map, `${window.location.origin}${import.meta.env.BASE_URL}data/trees.geojson`, 'buildings').catch((e) => console.error(e))
     })
     return () => {
       onMap(null)

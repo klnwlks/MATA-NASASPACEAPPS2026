@@ -25,3 +25,7 @@ dist-ssr
 
 .venv
 __pycache__
+
+# Credentials (NASA Earthdata, DAHITI): never commit
+.edl_token
+.dahiti_token

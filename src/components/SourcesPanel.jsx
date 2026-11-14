@@ -6,7 +6,7 @@ const rows = [
   [Mountain, 'bg-mint-tint text-mint-ink', 'Elevation · GLO-30', `Copernicus 30 m surface model, smoothed. Not bare ground, not survey-grade. Drawn ${TERRAIN_EXAGGERATION}× taller than real.`],
   [Satellite, 'bg-mint-tint text-mint-ink', 'Imagery · Sentinel-2 cloudless', 'EOX 2024 composite, about 10 m, shown when zoomed out. Not storm-date imagery and not a flood observation.'],
   [Building2, 'bg-amber-tint text-amber-ink', 'Buildings · OSM', `Footprints from OpenStreetMap. Where height is missing, drawn at ${SCHEMATIC_HEIGHT_M} m. Gaps mean unknown, not empty.`],
-  [Trees, 'bg-mint-tint text-mint-ink', 'Trees · OSM + fill', 'Dark trees with trunks are mapped in OpenStreetMap. Pale crowns are decorative fill inside mapped woods and parks, not observed trees.'],
+  [Trees, 'bg-mint-tint text-mint-ink', 'Trees · OSM + fill', '3,606 trees are mapped in OpenStreetMap. The rest are decorative fill scattered inside mapped woods and parks, not observed trees. Shape and size are schematic.'],
   [Shapes, 'bg-cobalt-tint text-cobalt-ink', 'Boundaries · COD-AB', 'NAMRIA and PSA, via OCHA, version 3 of 2025-02-13. Reference lines, not a legal survey.'],
 ]
 

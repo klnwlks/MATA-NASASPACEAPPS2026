@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Map, addProtocol, removeProtocol } from 'maplibre-gl'
+import { Map, Marker, addProtocol, removeProtocol } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { buildStyle, HOME_VIEW, SHADOW_BUCKETS } from './style.js'
@@ -14,12 +14,12 @@ const padding = () =>
     : { top: 88, bottom: 150, left: 16, right: 16 }
 const dur = (ms) => (reduceMotion() ? 0 : ms)
 
-export default function MapStage({ barangays, selectedId, show, fit, homeTick, time, onSelect, onStatus, onMap }) {
+export default function MapStage({ barangays, selectedId, show, fit, homeTick, time, onSelect, onMunicipality, onStatus, onMap }) {
   const el = useRef(null)
   const mapRef = useRef(null)
   const live = useRef({})
   useEffect(() => {
-    live.current = { onSelect, onStatus, barangays, time }
+    live.current = { onSelect, onMunicipality, onStatus, barangays, time }
   })
 
   useEffect(() => {
@@ -88,6 +88,20 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, t
     const add = () => {
       addBoundaryLayers(map, barangays.geojson, (id) => live.current.onSelect(id))
       map.fitBounds(barangays.bounds, { ...HOME_VIEW, padding: padding(), duration: 0 })
+      for (const m of barangays.municipalities) {
+        const pin = document.createElement('button')
+        pin.type = 'button'
+        pin.setAttribute('aria-label', `${m.name} storm events`)
+        pin.className = 'grid size-9 place-items-center rounded-full border-2 border-white bg-cobalt text-white shadow-float hover:bg-cobalt-ink'
+        pin.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>'
+        // Keep the map from turning pin presses into a barangay click underneath.
+        for (const type of ['mousedown', 'mouseup', 'touchstart', 'touchend', 'dblclick']) pin.addEventListener(type, (e) => e.stopPropagation())
+        pin.addEventListener('click', (e) => {
+          e.stopPropagation()
+          live.current.onMunicipality(m)
+        })
+        new Marker({ element: pin }).setLngLat(m.center).addTo(map)
+      }
     }
     if (map.loaded()) add()
     else map.once('load', add)

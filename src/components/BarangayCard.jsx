@@ -1,4 +1,4 @@
-import { Crosshair, Hash, MapPin, MousePointerClick, Radar, Shapes, Landmark, X } from 'lucide-react'
+import { Crosshair, Hash, MapPin, Radar, Shapes, Landmark, X } from 'lucide-react'
 import { DATA_VERSION } from '../data.js'
 
 function Row({ icon: Icon, tone, label, children, mono }) {
@@ -7,18 +7,6 @@ function Row({ icon: Icon, tone, label, children, mono }) {
       <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${tone}`}><Icon aria-hidden size={16} /></span>
       <dt className="text-muted">{label}</dt>
       <dd className={`ml-auto text-right ${mono ? 'font-mono' : ''}`}>{children}</dd>
-    </div>
-  )
-}
-
-function Empty({ count }) {
-  return (
-    <div className="flex items-start gap-3 p-4">
-      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-cobalt-tint text-cobalt"><MousePointerClick aria-hidden size={20} /></span>
-      <div>
-        <h2 className="text-base font-medium">No barangay selected</h2>
-        <p className="mt-0.5 text-sm text-muted">{count} barangays · Los Baños, Laguna. Select on map or search.</p>
-      </div>
     </div>
   )
 }
@@ -51,12 +39,10 @@ function Selected({ barangay, onClose, onLocate }) {
 
 export default function BarangayCard({ list, selectedId, onClose, onLocate }) {
   const barangay = list.find((b) => b.psgc === selectedId)
-  const place = barangay
-    ? 'fixed inset-x-0 bottom-[4.75rem] max-h-[45vh] rounded-t-2xl md:absolute md:inset-x-auto md:bottom-auto md:right-3 md:top-[5rem] md:max-h-[calc(100%-6.5rem)] md:w-[22rem] md:rounded-2xl'
-    : 'hidden md:absolute md:right-3 md:top-[5rem] md:flex md:w-[22rem] md:rounded-2xl'
+  if (!barangay) return null
   return (
-    <aside aria-label="Barangay details" className={`pointer-events-auto z-10 flex flex-col overflow-hidden bg-chalk shadow-float ${place}`}>
-      {barangay ? <Selected barangay={barangay} onClose={onClose} onLocate={() => onLocate(barangay)} /> : <Empty count={list.length} />}
+    <aside aria-label="Barangay details" className="pointer-events-auto fixed inset-x-0 bottom-[4.75rem] z-10 flex max-h-[45vh] flex-col overflow-hidden rounded-t-2xl bg-chalk shadow-float md:absolute md:inset-x-auto md:bottom-auto md:right-3 md:top-[5rem] md:max-h-[calc(100%-6.5rem)] md:w-[22rem] md:rounded-2xl">
+      <Selected barangay={barangay} onClose={onClose} onLocate={() => onLocate(barangay)} />
     </aside>
   )
 }

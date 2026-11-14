@@ -15,5 +15,13 @@ export async function loadBarangays() {
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
   const all = { type: 'GeometryCollection', geometries: geojson.features.map((f) => f.geometry) }
-  return { geojson, list, bounds: bbox(all) }
+  // One pin per municipality, at the center of its barangays' combined extent.
+  const munis = new Map()
+  for (const b of list) {
+    const m = munis.get(b.municipality) ?? { name: b.municipality, bounds: b.bounds }
+    m.bounds = [[Math.min(m.bounds[0][0], b.bounds[0][0]), Math.min(m.bounds[0][1], b.bounds[0][1])], [Math.max(m.bounds[1][0], b.bounds[1][0]), Math.max(m.bounds[1][1], b.bounds[1][1])]]
+    munis.set(b.municipality, m)
+  }
+  const municipalities = [...munis.values()].map((m) => ({ ...m, center: [(m.bounds[0][0] + m.bounds[1][0]) / 2, (m.bounds[0][1] + m.bounds[1][1]) / 2] }))
+  return { geojson, list, municipalities, bounds: bbox(all) }
 }

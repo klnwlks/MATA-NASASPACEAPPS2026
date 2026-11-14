@@ -1,5 +1,6 @@
 import { Crosshair, Hash, MapPin, Radar, Shapes, Landmark, X } from 'lucide-react'
 import { DATA_VERSION, shortDate } from '../data.js'
+import SecondOpinions from './SecondOpinions.jsx'
 
 function Row({ icon: Icon, tone, label, children, mono }) {
   return (
@@ -27,6 +28,7 @@ function Observations({ rec, frame, frames, onFrame }) {
       </div>
       <p className="mt-1 font-mono text-sm">{rec.floodHa[frame]} ha flood · {rec.lowConfidenceHa[frame]} ha low-confidence</p>
       <p className="text-xs text-muted">Radar sees {seen} % of this barangay. Buildings and tree cover hide floodwater from it and are left unknown, never dry. Low confidence: water on cropland or wetland away from the lake, often paddies.</p>
+      <SecondOpinions evidence={rec.evidence} frame={frame} />
       <h3 className="mt-3 text-sm font-medium text-cobalt-ink">Flooded runs, {frames.length} passes</h3>
       {rec.episodes.length ? (
         <ul className="mt-1 divide-y divide-line/70">

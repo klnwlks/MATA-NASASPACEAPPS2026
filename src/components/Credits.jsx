@@ -21,6 +21,7 @@ export default function Credits() {
           <p className="text-xs text-muted">Contains modified Copernicus Sentinel-1 data 2024–2026, RTC via Microsoft Planetary Computer</p>
           <p className="text-xs text-muted">© ESA WorldCover project 2021, CC BY 4.0</p>
           <p className="text-xs text-muted">Lake level: DAHITI, DGFI-TUM (satellite altimetry)</p>
+          <p className="text-xs text-muted">OPERA DSWx-S1 (NASA JPL) and NISAR GCOV (NASA/ISRO, provisional and V1) via NASA Earthdata</p>
         </section>
       )}
       <button

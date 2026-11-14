@@ -1,6 +1,7 @@
 const MESSAGES = {
   terrain: { loading: ['Terrain · loading', 'GLO-30 tiles'], failed: ['Terrain · unavailable', 'Flat fallback. Elevation not rendered.'] },
   basemap: { loading: ['Buildings and roads · loading', 'OSM extract'], failed: ['Buildings and roads · failed', 'Basemap not drawn.'] },
+  imagery: { failed: ['Imagery · unavailable', 'EOX tiles unreachable. Vector colours only.'] },
   boundaries: { loading: ['Boundaries · loading', 'COD-AB polygons'], failed: ['Boundaries · failed', 'Selection disabled.'] },
   webgl: { failed: ['WebGL · unavailable', "This browser can't draw the 3D map."] },
 }

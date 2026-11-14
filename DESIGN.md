@@ -8,7 +8,7 @@ Golden-hour relief: steep oblique pitch (~60–65°) looking south from Laguna d
 
 Map palette (from the Alive Maps reference): land `#F2EFE0`, lake `#11B5AE`, mint park `#8ED9AF`, forest `#3E9B5A`, major road `#E8807F`.
 
-Known limit: MapLibre + GLO-30 30 m terrain can't match V3's painted canopy. Expect hillshade and extrusions, not forest texture.
+Canopy: zoomed out, Sentinel-2 cloudless 2024 (EOX) imagery on the terrain gives the forest and paddy texture; it fades out by z16.5. Up close, low-poly trees take over: dark with trunks where OSM maps a tree, pale and trunkless for decorative fill in mapped woods and parks. Over imagery, unselected barangay lines lose contrast on dark forest; the selection casing still holds.
 
 ## Colour: Cobalt on Chalk
 

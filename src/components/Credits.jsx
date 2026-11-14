@@ -16,6 +16,7 @@ export default function Credits() {
           <p className="flex items-center gap-2 text-sm font-medium"><span className="grid size-8 place-items-center rounded-lg bg-amber-tint text-amber-ink"><ShieldAlert aria-hidden size={17} /></span>Not an official hazard map</p>
           <p className="mt-2 text-xs text-muted">© OpenStreetMap contributors</p>
           <p className="text-xs text-muted">Contains modified Copernicus DEM GLO-30</p>
+          <p className="text-xs text-muted">Sentinel-2 cloudless 2024 by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0</p>
           <p className="text-xs text-muted">NAMRIA, PSA via OCHA COD-AB (CC BY-IGO)</p>
         </section>
       )}

@@ -53,9 +53,19 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, o
         map.setTerrain(null)
         fail('terrain')
       } else if (e.sourceId === 'base') fail('basemap')
+      else if (e.sourceId === 'imagery') imagery.errored = true
+    })
+    // Single imagery tiles can fail and fall back to parents; only an imagery source that never delivers counts as down.
+    const imagery = { loaded: false, errored: false }
+    map.on('sourcedata', (e) => {
+      if (e.sourceId === 'imagery' && e.tile) imagery.loaded = true
     })
     map.once('idle', () => {
       for (const key of ['terrain', 'basemap']) if (!failed.has(key)) live.current.onStatus(key, 'ok')
+      if (imagery.errored && !imagery.loaded) {
+        map.setLayoutProperty('imagery', 'visibility', 'none')
+        fail('imagery')
+      }
     })
     map.on('load', () => {
       onMap(map)

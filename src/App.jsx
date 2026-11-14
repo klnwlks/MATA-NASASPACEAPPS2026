@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import MapStage from './map/MapStage.jsx'
 import Navbar from './components/Navbar.jsx'
 import BarangayCard from './components/BarangayCard.jsx'
@@ -7,6 +7,7 @@ import Timeline from './components/Timeline.jsx'
 import Status from './components/Status.jsx'
 import Credits from './components/Credits.jsx'
 import { loadBarangays } from './data.js'
+import { manilaTime } from './map/sun.js'
 
 export default function App() {
   const [barangays, setBarangays] = useState(null)
@@ -16,6 +17,8 @@ export default function App() {
   const [show, setShow] = useState({ boundaries: true, buildings: true })
   const [fit, setFit] = useState(null)
   const [homeTick, setHomeTick] = useState(0)
+  const [minutes, setMinutes] = useState(15 * 60 + 30) // Manila clock; mid-afternoon reads best by default
+  const time = useMemo(() => manilaTime(minutes), [minutes])
 
   const report = useCallback((key, value) => setStatus((s) => (s[key] === value ? s : { ...s, [key]: value })), [])
 
@@ -41,11 +44,11 @@ export default function App() {
   return (
     <div className="relative h-full overflow-hidden">
       <div className="absolute inset-0">
-        <MapStage barangays={barangays} selectedId={selectedId} show={show} fit={fit} homeTick={homeTick} onSelect={select} onStatus={report} onMap={setMap} />
+        <MapStage barangays={barangays} selectedId={selectedId} show={show} fit={fit} homeTick={homeTick} time={time} onSelect={select} onStatus={report} onMap={setMap} />
         <Navbar list={barangays?.list ?? []} boundariesReady={!!barangays} onSelect={select} />
         <Status status={status} />
         {barangays && <BarangayCard list={barangays.list} selectedId={selectedId} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} />}
-        <MapControls map={map} show={show} onShow={setShow} onHome={() => setHomeTick((t) => t + 1)} />
+        <MapControls map={map} show={show} onShow={setShow} onHome={() => setHomeTick((t) => t + 1)} minutes={minutes} onMinutes={setMinutes} />
         <Timeline />
         <Credits />
       </div>

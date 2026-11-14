@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react'
 import { Map, addProtocol, removeProtocol } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { buildStyle, HOME_VIEW } from './style.js'
+import { buildStyle, HOME_VIEW, SHADOW_BUCKETS } from './style.js'
 import { addBoundaryLayers, setSelection } from './boundaries.js'
 import { addTreeLayer } from './trees.js'
+import { applySun } from './sun.js'
 
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const padding = () =>
@@ -13,12 +14,12 @@ const padding = () =>
     : { top: 88, bottom: 150, left: 16, right: 16 }
 const dur = (ms) => (reduceMotion() ? 0 : ms)
 
-export default function MapStage({ barangays, selectedId, show, fit, homeTick, onSelect, onStatus, onMap }) {
+export default function MapStage({ barangays, selectedId, show, fit, homeTick, time, onSelect, onStatus, onMap }) {
   const el = useRef(null)
   const mapRef = useRef(null)
   const live = useRef({})
   useEffect(() => {
-    live.current = { onSelect, onStatus, barangays }
+    live.current = { onSelect, onStatus, barangays, time }
   })
 
   useEffect(() => {
@@ -69,6 +70,7 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, o
     })
     map.on('load', () => {
       onMap(map)
+      applySun(map, live.current.time)
       addTreeLayer(map, `${window.location.origin}${import.meta.env.BASE_URL}data/trees.geojson`, 'buildings').catch((e) => console.error(e))
     })
     return () => {
@@ -97,10 +99,15 @@ export default function MapStage({ barangays, selectedId, show, fit, homeTick, o
     const map = mapRef.current
     if (!map?.isStyleLoaded()) return
     const vis = (id, on) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
-    for (const id of ['buildings', 'roofs', 'building-shadow', 'building-ao']) vis(id, show.buildings)
+    for (const id of ['buildings', 'roofs', 'building-ao', ...SHADOW_BUCKETS.map(([id]) => id)]) vis(id, show.buildings)
     vis('bgy-line', show.boundaries)
     vis('bgy-label', show.boundaries)
   }, [show, barangays])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (map?.isStyleLoaded()) applySun(map, time)
+  }, [time])
 
   useEffect(() => {
     const map = mapRef.current

@@ -40,7 +40,8 @@ export function buildStyle(origin) {
       { id: 'roads-major-case', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': '#B9575A', 'line-width': width(1.6, 40) } },
       { id: 'roads-minor', type: 'line', source: 'base', 'source-layer': 'roads', minzoom: 13, filter: kind('minor_road'), layout: ROUND, paint: { 'line-color': '#FFFDF7', 'line-width': width(0.3, 18) } },
       { id: 'roads-major', type: 'line', source: 'base', 'source-layer': 'roads', filter: kind('major_road', 'highway'), layout: ROUND, paint: { 'line-color': C.road, 'line-width': width(1, 34) } },
-      { id: 'buildings', type: 'fill-extrusion', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: ['==', ['get', 'kind'], 'building'], paint: { 'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 0, '#FBF3E4', 8, '#F7E0B4', 16, '#F0BE6E', 30, '#E48F45'], 'fill-extrusion-height': ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 'fill-extrusion-opacity': 0.97, 'fill-extrusion-vertical-gradient': true } },
+      // Tone varies by feature id only, like a painted model; it encodes no attribute.
+      { id: 'buildings', type: 'fill-extrusion', source: 'base', 'source-layer': 'buildings', minzoom: 14, filter: ['==', ['get', 'kind'], 'building'], paint: { 'fill-extrusion-color': ['match', ['%', ['to-number', ['id'], 0], 5], 0, '#F4EDE1', 1, '#EADFCB', 2, '#E9D3C0', 3, '#DCD6CB', '#F1E2C6'], 'fill-extrusion-height': ['coalesce', ['get', 'height'], SCHEMATIC_HEIGHT_M], 'fill-extrusion-opacity': 0.97, 'fill-extrusion-vertical-gradient': true } },
     ],
   }
 }

@@ -1,0 +1,17 @@
+{
+ "tilejson": "2.2.0",
+ "name": "GLO-30 Terrarium",
+ "encoding": "terrarium",
+ "tileSize": 256,
+ "minzoom": 8,
+ "maxzoom": 12,
+ "bounds": [
+  121.09130939399999,
+  14.029612395,
+  121.346226975,
+  14.278157195000022
+ ],
+ "tiles": [
+  "terrain/{z}/{x}/{y}.png"
+ ]
+}

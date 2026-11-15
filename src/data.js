@@ -3,7 +3,7 @@ import { bbox } from './map/geo.js'
 export const DATA_VERSION = { source: 'COD-AB v03', validOn: '2025-02-13' }
 
 const root = import.meta.env.BASE_URL
-const FLOODS = `${root}data/${import.meta.env.VITE_FLOODS_DIR ?? 'floods'}/` // VITE_FLOODS_DIR: dev-only fixture switch
+const FLOODS = `${root}data/floods/`
 
 // Province boundaries: 682 barangays with their municipality, and 30 municipality outlines (scripts/municipalities.py)
 // that carry the pin and label position of each municipality.

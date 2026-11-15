@@ -42,6 +42,23 @@ function Now({ rec, frame }) {
   )
 }
 
+// Built-up land where radar echo lost coherence between two passes (the amber patches on the map): a possible flood
+// under or around buildings, where backscatter cannot see water. Shown whenever any loss was measured here, flagged or not.
+function CoherenceLoss({ evidence, frame }) {
+  const c = evidence?.coherence
+  const detail = c?.detail?.[frame]
+  if (!detail || !(parseFloat(detail) > 0)) return null
+  const flagged = c.flagged[frame] === 1
+  return (
+    <>
+      <h3 className="mt-3 text-sm font-medium text-cobalt-ink">Coherence loss in built-up areas</h3>
+      <p className="text-sm">{flagged ? 'Buildings here changed from the previous pass far more than they normally do, which can happen when water stands around or inside them. These are the amber patches on the map.' : 'Some built-up land here, the amber patches on the map, changed from the previous pass, but not enough to count as a flood signal.'}</p>
+      <p className="mt-1 text-sm text-muted">{detail}.</p>
+      <p className="mt-1 text-xs text-muted">A possible-flooding signal, not confirmation: construction or other change on built-up land can cause the same loss.</p>
+    </>
+  )
+}
+
 // The barangay's track record over the whole period: how often, how long, how bad.
 function History({ rec, frames, onFrame }) {
   const assessed = rec.state.filter((s) => s !== -1).length
@@ -79,6 +96,7 @@ function Observations({ rec, frame, frames, onFrame }) {
       </div>
       <Now rec={rec} frame={frame} />
       <SecondOpinions evidence={rec.evidence} frame={frame} />
+      <CoherenceLoss evidence={rec.evidence} frame={frame} />
       <History rec={rec} frames={frames} onFrame={onFrame} />
       {eps.length > 0 && (
         <details className="mt-2 text-sm">

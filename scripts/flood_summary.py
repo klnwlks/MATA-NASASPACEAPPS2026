@@ -1,11 +1,9 @@
 """Turn the class stack from floods.py into replay frames and per-barangay flood records.
 
-A barangay counts as flooded on a date when its high-confidence flood area is at least FLOOR_HA and at least twice
-its own noise level (95th percentile of flood area on dry-season reference dates, where no flood is expected).
-Low-confidence water (cropland, wetland) is reported but never counts toward flooded dates or durations.
-Durations come only from observed dates: for a run of flooded observations,
-  min days = last flooded - first flooded (the observed span)
-  max days = first dry-again - last dry-before (null when the run touches either end of the record).
+Open water: a barangay counts as flooded on a date when its high-confidence flood area is at least FLOOR_HA and at least
+three times its own noise level (95th percentile of flood area on dry-season reference dates, where no flood is expected).
+Low-confidence water (cropland, wetland) is reported but never counts. Combined state and duration runs across all
+sources are added by evidence.py.
 Run after floods.py: .venv/bin/python scripts/flood_summary.py
 Output: public/data/floods/manifest.json and one transparent PNG per observed date.
 """
@@ -67,23 +65,9 @@ def main():
         low = np.array([(classes[i][m] == FLOOD_LOW).sum() * px_ha for i in range(n)])
         noise = float(np.percentile([high[i] for i, d in enumerate(dates) if d in dry_ref], 95))
         state = np.where(visible < MIN_VISIBLE, -1, (high >= max(FLOOR_HA, NOISE_FACTOR * noise)).astype(int))  # -1 unknown, 0 none seen, 1 flooded
-        episodes, i = [], 0
-        while i < n:
-            if state[i] != 1:
-                i += 1
-                continue
-            j = i
-            while j + 1 < n and state[j + 1] == 1:
-                j += 1
-            before = next((k for k in range(i - 1, -1, -1) if state[k] == 0), None)
-            after = next((k for k in range(j + 1, n) if state[k] == 0), None)
-            gap_unknown = any(state[k] == -1 for k in range(0 if before is None else before + 1, n if after is None else after))
-            episodes.append({"first": dates[i], "last": dates[j], "observations": j - i + 1, "minDays": (day(dates[j]) - day(dates[i])).days,
-                             "maxDays": None if before is None or after is None else (day(dates[after]) - day(dates[before])).days, "unknownInside": gap_unknown})
-            i = j + 1
         barangays[f["properties"]["psgc"]] = {"name": f["properties"]["name"], "areaHa": round(float(m.sum() * px_ha), 1), "noiseHa": round(noise, 2),
                                               "floodHa": high.round(1).tolist(), "lowConfidenceHa": low.round(1).tolist(), "visibleShare": visible.round(2).tolist(),
-                                              "state": state.tolist(), "episodes": episodes}
+                                              "openWaterState": state.tolist()}
 
     to_ll = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
     corners = [list(to_ll.transform(*(T * (c, r)))) for c, r in ((0, 0), (w, 0), (w, h), (0, h))]
@@ -99,7 +83,7 @@ def main():
         "barangays": barangays,
     }
     json.dump(manifest, open(f"{OUT}/manifest.json", "w"), separators=(",", ":"))
-    print(len(frames), "frames;", sum(len(b["episodes"]) for b in barangays.values()), "barangay episodes;", len(manifest["acquiredNotProcessed"]), "acquired but not processed")
+    print(len(frames), "frames;", sum(sum(s == 1 for s in b["openWaterState"]) for b in barangays.values()), "open-water flooded barangay-passes;", len(manifest["acquiredNotProcessed"]), "acquired but not processed")
 
 
 if __name__ == "__main__":

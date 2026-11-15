@@ -2,6 +2,10 @@
 // acquisition near this pass says so instead of reading as "no flood".
 const VERDICT = { 1: ['Flood signal', 'bg-cobalt text-white'], 0: ['None seen', 'bg-white/70 text-ink'], null: ['No acquisition', 'bg-white/70 text-muted'] }
 
+const ABOUT = {
+  coherence: 'Urban flooding shows up as coherence loss (amber on the map). Between two radar passes, buildings and streets normally look the same. Floodwater among them changes the signal, so that match drops. Construction or other change can cause it too.',
+}
+
 export default function SecondOpinions({ evidence, frame }) {
   const sources = Object.entries(evidence ?? {})
   if (!sources.length) return null
@@ -17,6 +21,7 @@ export default function SecondOpinions({ evidence, frame }) {
                 <span className="font-medium">{s.label}</span>
                 <span className={`ml-auto rounded-lg px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
               </div>
+              {ABOUT[key] && <p className="mt-0.5 text-xs text-muted">{ABOUT[key]}</p>}
               {s.detail[frame] && <p className="font-mono text-xs text-muted">{s.detail[frame]}</p>}
             </li>
           )

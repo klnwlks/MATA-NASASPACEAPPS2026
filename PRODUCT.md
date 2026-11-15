@@ -10,7 +10,7 @@ web
 
 Primary: hackathon judges evaluating the project in a live demo, on a desktop browser at a venue. They need to grasp in seconds what place is shown, what the tool will eventually do, and that the team is honest about what the data can and cannot say.
 
-The story's subjects, not the demo's operators: Bay residents in low-lying lakeshore and paddy barangays, municipal DRRM / LGU staff planning drainage and evacuation. Their needs shape terminology and honesty constraints, not the current information density.
+The story's subjects, not the demo's operators: residents of Bay, Pila, Victoria and Santa Cruz, and municipal DRRM / LGU staff planning drainage and evacuation. Their needs shape terminology and honesty constraints, not the current information density.
 
 ## Product Purpose
 
@@ -18,11 +18,11 @@ The story's subjects, not the demo's operators: Bay residents in low-lying lakes
 
 Goal: a SAR-based decision-support web app. Using multi-temporal Sentinel-1 backscatter change detection, it replays how typhoon floods spread and receded in Philippine river basins and maps how long each barangay stayed underwater, with uncertainty ranges. Exposure indices and resident photo validation help LGUs and DRRM offices prioritise drainage, evacuation and recovery. Research basis: `Flood-Rewind-What-the-Typhoon-Left-Behind.pdf`.
 
-Cadence: Sentinel-1 is not daily. Bay is covered by a descending track (relative orbit 32, about 05:47 Philippine time: every 12 days until mid-2025, then mostly every 6) and, from April 2025, an ascending track (relative orbit 142, about 18:05, every 12 days). Each track is compared only with its own four-year history, so the two viewing geometries never mix in one reference.
+Cadence: Sentinel-1 is not daily. Over the selected Laguna area, descending track 32 passes about 05:47 Philippine time and ascending track 142 about 18:05. Each track uses its own dry-season reference from the replay window; four-year seasonal normalization is deferred.
 
-Current phase: **Bay, Laguna** (PSGC `0403402000`, 15 barangays), the last two years of passes on both tracks (2024-11-15 to 2026-11-15). 3D stage (GLO-30 terrain, OSM buildings, COD-AB barangays) plus a replay of every observed pass, per-pass second opinions (NASA OPERA DSWx-S1; InSAR coherence over buildings from ASF HyP3; NISAR L-band from June 2026), per-barangay flooded runs as "between X and Y days" ranges combined across all sources with the sources named, municipality-wide flood runs, and the Laguna de Bay level from altimetry (DAHITI). Storms are not named by the app; runs are dated only.
+Current phase: map Laguna's 30 municipalities and 682 COD-AB barangays. Process primary Sentinel-1 observations for **Bay, Pila, Victoria and Santa Cruz** over 2024-11-15 to 2026-11-15. The current published preview covers Bay only (84 descending passes); the four-municipality, two-track run is in progress. Other municipalities are unknown, not dry.
 
-Success for this phase: a judge recognises Bay on Laguna de Bay, steps through real pass dates, opens a barangay and reads a duration range bounded by real passes, and sees where the record is unknown.
+Success for this phase: a judge identifies the four focus municipalities, steps through real pass dates, opens a barangay and sees observed flood evidence and unknown coverage without implying daily or continuous observation.
 
 ## Positioning
 
@@ -36,9 +36,9 @@ Time and duration of flooding, with uncertainty built into the display, at baran
 
 ## Capabilities and Constraints
 
-- In scope now: everything above plus the observed-pass replay, flood overlay per pass, per-barangay flood area (high and low confidence), duration ranges, second opinions and lake level.
-- Out of scope now: rainfall, exposure indices, photo upload, modelled frames between passes, storm attribution.
-- Terminology: barangay, PSGC, pass, observed vs modeled vs unknown, low confidence (water on cropland or wetland, often paddies), second opinion, seen by, "flooded for between X and Y days".
+- In scope now: observed-pass replay and Sentinel-1 open-water flood indications for the four focus municipalities; GLO-30 terrain, OSM buildings, COD-AB boundaries and contextual Laguna de Bay level.
+- Deferred: four-year normalization, secondary satellite opinions, duration estimates, rainfall, exposure indices, photo upload, modelled frames and storm attribution.
+- Terminology: barangay, PSGC, pass, observed, unknown, low confidence (water on cropland or wetland, often paddies), and no flood seen.
 - Undecided: exposure index definition, boundary vintage for historical joins.
 
 ## Brand Commitments
@@ -50,8 +50,8 @@ Time and duration of flooding, with uncertainty built into the display, at baran
 ## Evidence on Hand
 
 - Research brief PDF and architecture plan in repo root.
-- 15 COD-AB v03 barangay polygons for Bay, PSGC municipality code `0403402000` (`public/data/PROVENANCE.md`).
-- Flood frames and per-barangay records derived from Sentinel-1 RTC (`scripts/floods.py`, `scripts/flood_summary.py`). No photos, statistics or testimonials exist. None may be fabricated or implied.
+- 682 COD-AB v03 barangay polygons across Laguna, including 67 in the four focus municipalities (`public/data/PROVENANCE.md`).
+- Published primary-source flood frames and per-barangay records cover Bay only so far; the other three are being processed. No photos, statistics or testimonials may be fabricated or implied.
 
 ## Product Principles
 

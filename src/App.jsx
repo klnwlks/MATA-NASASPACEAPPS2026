@@ -108,7 +108,10 @@ export default function App() {
         <MapStage barangays={barangays} floods={floods} manifest={manifests[focusId]?.data ?? null} focus={focus} frame={frame} selectedId={selectedId} show={show} fit={fit} homeTick={homeTick} time={time} onSelect={select} onMunicipality={openMunicipality} onCenter={setFocusId} onStatus={report} onMap={setMap} />
         <Navbar list={barangays?.list ?? []} municipalities={barangays?.municipalities ?? []} frames={floods?.frames.length} boundariesReady={!!barangays} onSelect={select} onMunicipality={openMunicipality} />
         <Status status={status} />
-        {floods?.coverageNote && <p className="pointer-events-auto absolute left-[4.75rem] top-20 z-10 rounded-xl bg-chalk px-3 py-2 text-xs text-muted shadow-float md:left-3">{floods.coverageNote}</p>}
+        <div className="pointer-events-auto absolute left-[4.75rem] top-20 z-10 rounded-xl bg-chalk px-3 py-2 text-xs text-muted shadow-float md:left-3">
+          <p>Focus: Bay, Pila, Victoria, Santa Cruz</p>
+          {floods?.coverageNote && <p>{floods.coverageNote}</p>}
+        </div>
         {selected && <BarangayCard barangay={selected} states={floods?.states} manifest={manifests[selected.munipsgc]} frames={floods?.frames ?? []} frame={frame} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} onFrame={setFrame} />}
         {municipality && <MunicipalityCard municipality={municipality} psgcs={barangays.list.filter((b) => b.munipsgc === municipality.psgc).map((b) => b.psgc)} floods={floods} onFrame={setFrame} onClose={() => setMunicipality(null)} />}
         {floods && <Legend frame={floods.frames[frame]} />}

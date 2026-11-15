@@ -1,4 +1,4 @@
-// Low-poly 3D trees drawn by three.js inside MapLibre. fill-extrusion can only push polygons straight up,
+// Low-poly 3D trees drawn by three.js inside MapLibre, for the municipality in focus (public/data/trees/<munipsgc>.geojson). fill-extrusion can only push polygons straight up,
 // which turns trees into prisms. Mapped OSM trees (k=1) and decorative fill (k=0, scripts/trees.py) share
 // one mesh; fill is shifted slightly in hue and disclosed in Sources.
 import { Camera, Color, InstancedMesh, Matrix4, Quaternion, Scene, Vector3, Vector4, WebGLRenderer } from 'three'
@@ -18,9 +18,10 @@ function chunkKey(lon, lat) {
 
 export async function addTreeLayer(map, url, beforeId) {
   const res = await fetch(url)
+  if (res.status === 404) return null // no tree file for this municipality: decoration only, nothing to unload
   if (!res.ok) throw new Error(`trees: HTTP ${res.status}`)
   const { features } = await res.json()
-  if (!map.getStyle()) return // map removed while loading
+  if (!map.getStyle()) return null // map removed while loading
 
   const chunks = new Map()
   for (const f of features)
@@ -107,9 +108,12 @@ export async function addTreeLayer(map, url, beforeId) {
       },
       onRemove: () => {
         map.off('terrain', place)
+        for (const { set } of meshes) for (const mesh of Object.values(set)) mesh.dispose()
+        renderer?.dispose()
         dispose()
       },
     },
     beforeId,
   )
+  return { remove: () => map.getLayer('trees') && map.removeLayer('trees') }
 }

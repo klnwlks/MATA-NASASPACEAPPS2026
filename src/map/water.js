@@ -1,6 +1,6 @@
 // Flood frames as a lit water surface: one terrain-following mesh covering the frame, drawn by three.js after the
 // extrusions and trees, so roofs and crowns above the surface stay dry and the parts below it read as submerged.
-// Cost: one 32k-vertex mesh, a texture swap per frame, a cheap fragment shader. Ripples repaint at RIPPLE_FPS only for
+// Cost: one mesh of about 72 m cells over the focused municipality's crop (32k vertices for Bay, 130k at most), a texture swap per frame, a cheap fragment shader. Ripples repaint at RIPPLE_FPS only for
 // RIPPLE_MS after a frame swap or camera move: playback swaps every 900 ms so it ripples throughout, an idle map draws nothing.
 // Water depth is the Laguna de Bay stage at the frame time (DAHITI altimetry, above the geoid) minus the GLO-30 ground
 // (same datum): a water table over the whole frame, deeper where the ground is lower. Where the ground is above the stage
@@ -13,7 +13,8 @@ const SLICES = 4
 const RIPPLE_FPS = 12
 const RIPPLE_MS = 3000
 const DEM_N = 2 ** 12 // the terrain's own tile level, so the surface follows the ground MapLibre draws
-const [NX, NY] = [160, 200]
+const CELL_M = 72 // surface mesh cell on the ground; a municipality's crop sets the grid, within these bounds
+const [MIN_CELLS, MAX_CELLS] = [64, 360]
 
 // Shared with sun.js so the water takes the same sky, horizon and sun as the rest of the map.
 const light = { uSky: { value: new Color() }, uHorizon: { value: new Color() }, uSunDir: { value: new Vector3(0, 0, 1) }, uSun: { value: 1 }, uAmb: { value: 1 } }
@@ -52,6 +53,8 @@ async function loadDem(root, nw, se) {
 }
 
 function surface(dem, nw, se, origin, s) {
+  const cells = (span) => Math.min(MAX_CELLS, Math.max(MIN_CELLS, Math.ceil(span / s / CELL_M)))
+  const [NX, NY] = [cells(se.x - nw.x), cells(se.y - nw.y)]
   const g = new PlaneGeometry(1, 1, NX, NY)
   const pos = g.attributes.position
   const elev = new Float32Array(pos.count)
@@ -152,7 +155,8 @@ void main() {
   #include <colorspace_fragment>
 }`
 
-// Resolves once the layer exists: { set(url, stage) } swaps the frame and the lake stage; overlay() drives evidence layers.
+// Resolves once the layer exists: { set(url, stage) } swaps the frame and the lake stage; overlay() drives evidence layers;
+// remove() unloads it. One municipality's crop per layer: the caller keeps at most one alive.
 export async function addWaterLayer(map, corners, root) {
   const [nw, se] = [MercatorCoordinate.fromLngLat(corners[0], 0), MercatorCoordinate.fromLngLat(corners[2], 0)]
   const dem = await loadDem(root, nw, se)
@@ -228,6 +232,7 @@ export async function addWaterLayer(map, corners, root) {
     onRemove: () => {
       clearInterval(timer)
       map.off('move', wake)
+      renderer?.dispose()
       base.dispose()
       volume.dispose()
       for (const m of [mat, veil.material, ...Object.values(overlays).map((o) => o.mat)]) {
@@ -238,6 +243,7 @@ export async function addWaterLayer(map, corners, root) {
   })
 
   return {
+    remove: () => map.getLayer('flood') && map.removeLayer('flood'),
     set: (url, stage) => swap(u, url, () => ((u.uStage.value = stage ?? -1000), (visible = true), wake())),
     // Evidence overlay (coherence, nisar): same smoothed mask, flat colour, hidden when its source has no pass here.
     overlay(key, url, on) {

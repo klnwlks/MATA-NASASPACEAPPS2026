@@ -239,29 +239,120 @@ def atomic_savez(path, compressed=False, **arrays):
     os.replace(tmp, path)
 
 
-def main(only):
-    os.makedirs(OUT, exist_ok=True)
-    transform, shape = grid()
-    tok = get(f"{PC}/sas/v1/token/sentinel-1-rtc")["token"]
-    # Smooth the 30 m surface model first: raw, its tree and roof edges read as steep slopes across flat paddies.
-    dem = gaussian_filter(np.nan_to_num(warp(DEM, transform, shape)), DEM_SMOOTH_PX)
-    gy, gx = np.gradient(dem, PX * 0.97)  # mercator to ground scale at 14.1 N
-    steep = np.degrees(np.arctan(np.hypot(gx, gy))) >= MAX_SLOPE_DEG
-    lc = warp(WC, transform, shape, Resampling.nearest, "uint8")
-    low_conf = np.isin(lc, (40, 90, 95))  # cropland, herbaceous wetland, mangroves
-    blind = np.isin(lc, (10, 50))  # tree cover, built-up
+def update_grid(**arrays):
+    """Add or replace keys in grid.npz (single writer, so read-modify-write with an atomic rename is safe)."""
+    path = f"{CACHE}/grid.npz"
+    cur = {}
+    if os.path.exists(path):
+        with np.load(path) as d:
+            cur = {k: d[k] for k in d.files}
+    cur.update(arrays)
+    atomic_savez(path, True, **cur)
 
-    rows = []  # (utc, platform, track, class array, loose flood, strict flood, threshold)
-    dry_ref = []
-    tracks = {t: d for t, d in TRACKS.items() if not only or t in only}
-    for track, direction in tracks.items():
-        dates, platforms, stack = load_track(track, direction, transform, shape, tok)
-        hist = np.load(f"{OUT}/history_{track}.npz")
-        thr = [otsu(s.astype("float32")) for s in stack]
-        dry = [i for i, d in enumerate(dates) if d[5:7] in ("02", "03", "04")]
-        dry_ref += [dates[i] for i in dry]
-        permanent = np.mean(np.stack([stack[i].astype("float32") < thr[i] for i in dry]), 0) >= PERMANENT_SHARE
-        ref = np.nanmedian(np.stack([stack[i].astype("float32") for i in dry]), 0)
+
+def static_layers(T, shape):
+    """steep, low_conf, blind bool rasters. Cached in CACHE/static.npz (packed). DEM is warped tile by tile in row blocks."""
+    path, H, W = f"{CACHE}/static.npz", shape[0], shape[1]
+    if os.path.exists(path):
+        with np.load(path) as d:
+            return tuple(np.unpackbits(d[k], count=H * W).reshape(shape).astype(bool) for k in ("steep", "low_conf", "blind"))
+    steep, low_conf, blind = (np.zeros(shape, bool) for _ in range(3))
+    pad, step = 30, 1000  # the 6 px smoothing reaches 4 sigma = 24 px, plus the gradient
+    for r0 in range(0, H, step):
+        r1 = min(r0 + step, H)
+        Tb, n = T * Affine.translation(0, r0 - pad), r1 - r0 + 2 * pad
+        d = None
+        for tile in DEM_TILES:
+            w = warp(tile, Tb, (n, W))
+            d = w if d is None else np.fmax(d, w)
+        # Smooth the 30 m surface model first: raw, its tree and roof edges read as steep slopes across flat paddies.
+        d = gaussian_filter(np.nan_to_num(d), DEM_SMOOTH_PX)
+        gy, gx = np.gradient(d, PX * 0.97)  # mercator to ground scale at 14.3 N
+        steep[r0:r1] = (np.degrees(np.arctan(np.hypot(gx, gy))) >= MAX_SLOPE_DEG)[pad:pad + r1 - r0]
+        lc = warp(WC, T * Affine.translation(0, r0), (r1 - r0, W), Resampling.nearest, "uint8")
+        low_conf[r0:r1] = np.isin(lc, (40, 90, 95))  # cropland, herbaceous wetland, mangroves
+        blind[r0:r1] = np.isin(lc, (10, 50))  # tree cover, built-up
+        print("static rows", r1, "/", H, flush=True)
+    atomic_savez(path, True, steep=np.packbits(steep), low_conf=np.packbits(low_conf), blind=np.packbits(blind))
+    return steep, low_conf, blind
+
+
+class Prefetch:
+    """Iterate (job, scene) in order while a thread pool loads the next PREFETCH scenes (in flight or waiting)."""
+    def __init__(self, jobs, load):
+        self.jobs, self.load, self.ex, self.q = list(jobs), load, ThreadPoolExecutor(PREFETCH), deque()
+        self.i = 0
+
+    def _fill(self):
+        while self.i < len(self.jobs) and len(self.q) < PREFETCH:
+            self.q.append((self.jobs[self.i], self.ex.submit(self.load, self.jobs[self.i])))
+            self.i += 1
+
+    def __iter__(self):
+        self._fill()
+        while self.q:
+            job, fut = self.q.popleft()
+            scene = fut.result()
+            self._fill()
+            yield job, scene
+        self.ex.shutdown()
+
+
+class Status:
+    def __init__(self):
+        self.t0, self.log = time.time(), {}
+
+    def write(self, phase, done, total, note=""):
+        el = time.time() - self.t0
+        eta = f"{el / max(done, 1) * (total - done) / 3600:.1f} h" if done else "unknown"
+        txt = f"S1Core floods.py {phase}\nstarted {datetime.fromtimestamp(self.t0):%Y-%m-%d %H:%M}, updated {datetime.now():%Y-%m-%d %H:%M}\n{done}/{total} done in this run segment; elapsed {el / 3600:.2f} h, ETA {eta}\n{note}\n"
+        with open(f"{CACHE}/S1CORE_STATUS.txt", "w") as f:
+            f.write(txt)
+
+
+def date_of(item):
+    return item["properties"]["datetime"][:10]
+
+
+def phase_a(track, items, T, shape, sas, status):
+    """Dry-season references for one track; see module docstring. Returns nothing, writes ref_<track>.npy and grid.npz keys."""
+    H, W = shape
+    dry = [f for f in items if date_of(f)[5:7] in ("02", "03", "04")]
+    d = f"{CACHE}/dry_{track}"
+    os.makedirs(d, exist_ok=True)
+    name = lambda f: date_of(f).replace("-", "")
+    todo = [f for f in dry if not os.path.exists(f"{d}/{name(f)}.json")]
+
+    def load(f):
+        return load_scene(f, sas, T, shape)
+
+    for k, (f, s) in enumerate(Prefetch(todo, load)):
+        thr = otsu(s)
+        q = np.lib.format.open_memmap(f"{d}/{name(f)}.q.tmp.npy", "w+", "uint8", (H, W))
+        for a in range(0, H, CHUNK):
+            q[a:a + CHUNK] = quantise(s[a:a + CHUNK].astype("float32"))
+        q.flush(); del q
+        os.replace(f"{d}/{name(f)}.q.tmp.npy", f"{d}/{name(f)}.q.npy")
+        np.save(f"{d}/{name(f)}.below.npy", np.packbits(s < thr))
+        json.dump({"thr": thr}, open(f"{d}/{name(f)}.json", "w"))  # written last: its presence marks the pass done
+        status.write(f"phase A track {track}", k + 1, len(todo), f"dry pass {name(f)} threshold {thr:.2f} dB")
+        print("A", track, name(f), f"thr {thr:.2f}", flush=True)
+    n = len(dry)
+    if n:
+        count = np.zeros(H * W, "uint8")
+        for f in dry:
+            count += np.unpackbits(np.load(f"{d}/{name(f)}.below.npy"), count=H * W)
+        permanent = (count / n >= PERMANENT_SHARE).reshape(shape)
+        del count
+        ref = np.lib.format.open_memmap(f"{CACHE}/ref_{track}.tmp.npy", "w+", "float16", (H, W))
+        qs = [np.load(f"{d}/{name(f)}.q.npy", mmap_mode="r") for f in dry]
+        for a in range(0, H, 64):
+            qt = np.ascontiguousarray(np.stack([x[a:a + 64] for x in qs], -1))
+            cnt = (qt != Q_NONE).sum(-1)
+            m2 = median_pair(np.sort(qt, -1, kind="stable"), cnt)  # lo + hi in 0.2 dB steps from Q_MIN
+            ref[a:a + 64] = np.where(cnt > 0, Q_MIN + m2 * (Q_STEP / 2), np.nan)
+        ref.flush(); del ref, qs
+        os.replace(f"{CACHE}/ref_{track}.tmp.npy", f"{CACHE}/ref_{track}.npy")
         lab, _ = label(permanent)
         lake = lab == np.bincount(lab[lab > 0]).argmax()  # Laguna de Bay: the largest permanent water body
 

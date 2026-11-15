@@ -1,12 +1,14 @@
 // Flood frames as a lit water surface: one terrain-following mesh covering the frame, drawn by three.js after the
 // extrusions and trees, so roofs and crowns above the surface stay dry and the parts below it read as submerged.
-// Cost: one 32k-vertex mesh, a texture swap per frame, a cheap fragment shader; ripples repaint at RIPPLE_FPS.
+// Cost: one 32k-vertex mesh, a texture swap per frame, a cheap fragment shader. Ripples repaint at RIPPLE_FPS only for
+// RIPPLE_MS after a frame swap or camera move: playback swaps every 900 ms so it ripples throughout, an idle map draws nothing.
 // The surface height is a visual cue (lake stage above its two-year low, see floodRise), not measured depth.
 import { BufferAttribute, Camera, Color, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector2, Vector3, Vector4, WebGLRenderer } from 'three'
 import { MercatorCoordinate } from 'maplibre-gl'
 
 const SLICES = 4
 const RIPPLE_FPS = 12
+const RIPPLE_MS = 3000
 const DEM_N = 2 ** 12 // the terrain's own tile level, so the surface follows the ground MapLibre draws
 const [NX, NY] = [160, 200]
 
@@ -191,8 +193,12 @@ export async function addWaterLayer(map, corners, root) {
       return [key, { mat: m, mesh: o, url: null }]
     }),
   )
+  // Each repaint redraws the whole map (terrain, imagery, buildings, trees), so ripples run only while something changes.
+  let until = 0
+  const wake = () => (until = performance.now() + RIPPLE_MS)
+  map.on('move', wake)
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
-  const timer = setInterval(() => visible && !document.hidden && !reduced.matches && map.triggerRepaint(), 1000 / RIPPLE_FPS)
+  const timer = setInterval(() => visible && performance.now() < until && !document.hidden && !reduced.matches && map.triggerRepaint(), 1000 / RIPPLE_FPS)
 
   map.addLayer({
     id: 'flood',
@@ -214,6 +220,7 @@ export async function addWaterLayer(map, corners, root) {
     },
     onRemove: () => {
       clearInterval(timer)
+      map.off('move', wake)
       base.dispose()
       volume.dispose()
       for (const m of [mat, ...Object.values(overlays).map((o) => o.mat)]) {
@@ -224,7 +231,7 @@ export async function addWaterLayer(map, corners, root) {
   })
 
   return {
-    set: (url, rise) => swap(u, url, () => ((u.uRise.value = rise), (visible = true))),
+    set: (url, rise) => swap(u, url, () => ((u.uRise.value = rise), (visible = true), wake())),
     // Evidence overlay (coherence, nisar): same smoothed mask, flat colour, hidden when its source has no pass here.
     overlay(key, url, on) {
       const o = overlays[key]

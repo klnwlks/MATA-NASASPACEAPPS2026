@@ -123,7 +123,7 @@ def coherence(frames, ids, px_ha, permanent, built):
     by_date = {s[:8]: i for i, s in enumerate(sec)}
     out = {b: {"flagged": [None] * len(frames), "detail": [None] * len(frames)} for b in np.unique(ids[ids > 0]).tolist()}
     for fi, f in enumerate(frames):
-        i = by_date.get(f["utc"][:10].replace("-", ""))
+        i = by_date.get(f["utc"][:10].replace("-", "")) if f["track"] == 32 else None  # pairs exist for track 32 only
         if i is None or gaps[i] not in base:
             continue
         lost = (coh[i] - base[gaps[i]] <= COH_DROP) & built

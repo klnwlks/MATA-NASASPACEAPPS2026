@@ -19,7 +19,7 @@ export default function Timeline({ floods, frame, onFrame }) {
   const ready = frames.length > 0
   return (
     <div role="group" aria-label="Flood replay" className="pointer-events-auto absolute inset-x-3 bottom-3 z-10 flex items-center gap-3 rounded-2xl bg-chalk p-2.5 shadow-float md:inset-x-auto md:left-1/2 md:w-[46rem] md:-translate-x-1/2">
-      <span className="hidden items-center gap-2 rounded-xl bg-cobalt-tint px-3 py-2 text-sm font-medium text-cobalt-ink sm:flex"><Satellite aria-hidden size={16} />S1 · D32</span>
+      <span className="hidden items-center gap-2 rounded-xl bg-cobalt-tint px-3 py-2 text-sm font-medium text-cobalt-ink sm:flex" title={f?.track === 142 ? 'Ascending track 142, evening pass' : 'Descending track 32, morning pass'}><Satellite aria-hidden size={16} />S1 · {f?.track === 142 ? 'A142' : 'D32'}</span>
       <div className="flex gap-1.5">
         <button type="button" disabled={!ready} aria-label="Previous observation" onClick={() => onFrame((i) => Math.max(0, i - 1))} className={btn}><SkipBack aria-hidden size={18} /></button>
         <button type="button" disabled={!ready} aria-label={playing ? 'Pause replay' : 'Play replay'} onClick={() => setPlaying((p) => !p)} className={btn}>{playing ? <Pause aria-hidden size={18} /> : <Play aria-hidden size={18} />}</button>

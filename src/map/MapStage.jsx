@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Map, Marker } from 'maplibre-gl'
+import { Map, Marker, setWorkerUrl } from 'maplibre-gl'
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { buildStyle, HOME_VIEW, PROVINCE_VIEW, SHADOW_BUCKETS } from './style.js'
 import { addBoundaryLayers, setFrame, setSelection, setMunicipalitySelection, setLabelMunicipalities, setStates, BOUNDARY_LAYERS, PIN_ZOOM } from './boundaries.js'
@@ -9,6 +10,8 @@ import { createSlot } from './slot.js'
 import { addFarmPattern } from './farmPattern.js'
 import { applySun } from './sun.js'
 
+// MapLibre 6 resolves its worker next to the bundle, where Vite emits nothing; point it at a bundled copy.
+setWorkerUrl(workerUrl)
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const padding = () =>
   window.matchMedia('(min-width: 768px)').matches

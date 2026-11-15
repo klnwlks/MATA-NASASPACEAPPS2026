@@ -123,7 +123,49 @@ def opera(c):
                    "NASA OPERA DSWx-S1 v1 (JPL), same pass; open water plus inundated vegetation, outside our permanent water; flagged at >= 2 ha and >= 3x its own dry-season noise")
 
 
-SOURCES = {"opera": opera}
+def nisar(c):
+    z = np.load(f"{EV}/nisar.npz")
+    utc = [str(u) for u in z["utc"]]
+    dark, seen, rate = z["dark_ha"], z["seen"], z["control_rate"]
+    near = []  # per frame: (acquisition index, gap days) of the nearest acquisition within NISAR_DAYS
+    for f in c.frames:
+        cand = [(abs((t(u) - t(f["utc"])).total_seconds()), i) for i, u in enumerate(utc) if abs((t(u) - t(f["utc"])).total_seconds()) <= NISAR_DAYS * 86400]
+        near.append(min(cand) if cand else None)
+    flags, details = {}, {}
+    for b in c.rec:
+        fl, dt = [None] * len(c.frames), [None] * len(c.frames)
+        for fi, n in enumerate(near):
+            if n is None or seen[n[1], b] <= NISAR_SEEN:
+                continue
+            ha = round(float(dark[n[1], b]), 1)
+            fl[fi] = int(ha >= max(FLOOR_HA, NOISE_FACTOR * float(rate[n[1]]) * c.area[b]))
+            dt[fi] = f"{ha} ha darkened in HV · {utc[n[1]][:10]}, {int(n[0] // 86400)} d from pass"
+        flags[b], details[b] = fl, dt
+    done = {}
+    for m, crop in c.crops.items():
+        mask = None
+        for fi, n in enumerate(near):
+            if n is None:
+                continue
+            day = utc[n[1]][:10].replace("-", "")
+            rel = f"{m}/nisar/{day}.png"
+            if (m, day) not in done:
+                if mask is None:
+                    mask = c.mask(m)
+                packed = np.load(f"{EV}/nisar_mask/{utc[n[1]][:10]}.npz")["m"]
+                full = np.unpackbits(packed)[: c.shape[0] * c.shape[1]].reshape(c.shape)
+                r0, r1, c0, c1 = crop
+                dark_m = full[r0:r1, c0:c1].astype(bool) & mask
+                done[(m, day)] = bool(dark_m.any())
+                if done[(m, day)]:
+                    overlay(f"{FLOODS}/{rel}", dark_m, CYAN)
+            if done[(m, day)]:
+                c.set_file(m, fi, "nisarFile", rel)
+    c.set_evidence("nisar", "NISAR L-band", flags, details,
+                   f"NISAR GCOV HV darkening >= 3 dB against low-lake acquisitions (before 2026-07-31) of the same track; flagged at >= 2 ha and >= 3x the darkening rate more than 2 km from the lake; nearest acquisition within {NISAR_DAYS} days")
+
+
+SOURCES = {"opera": opera, "nisar": nisar}
 
 
 def main():

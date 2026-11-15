@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ArrowRight, X } from 'lucide-react'
+import { ArrowRight, ExternalLink, X } from 'lucide-react'
 import logoUrl from '../assets/mata-logo.svg'
 
 const HATCH = 'repeating-linear-gradient(135deg, #56607A 0 1.5px, transparent 1.5px 5px)'
@@ -50,7 +50,12 @@ export default function AboutDialog({ onClose, floods }) {
           Built by Team Masasarap in Manila for the NASA Space Apps challenge “Dancing with the SARs”: {TEAM.slice(0, -1).join(', ')} and {TEAM.at(-1)}.
         </p>
 
-        <p className="mt-4 text-sm leading-relaxed text-muted">Code developed with AI assistance.</p>
+        <p className="mt-4 text-sm leading-relaxed text-muted">
+          Code developed with AI assistance.{' '}
+          <a href="https://github.com/klnwlks/nasaspaceapps2026" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-cobalt underline-offset-2 hover:underline">
+            View source on GitHub <ExternalLink aria-hidden size={13} />
+          </a>
+        </p>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:mt-6">
           <p className="text-xs text-muted">Passes are not daily and can miss floods. Not an official hazard map.</p>

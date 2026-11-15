@@ -59,20 +59,19 @@ function surface(dem, nw, se, origin, s) {
     const at = (a, b) => dem.m[(iy + b) * dem.w + ix + a]
     elev[k] = (at(0, 0) * (1 - ax) + at(1, 0) * ax) * (1 - ay) + (at(0, 1) * (1 - ax) + at(1, 1) * ax) * ay
   }
-  g.setAttribute('slice', new BufferAttribute(new Float32Array(pos.count), 1)) // 0: overlays lie on the ground
   return g.setAttribute('elev', new BufferAttribute(elev, 1))
 }
 
 const VERT = /* glsl */ `
 attribute float elev, slice;
-uniform float uEx, uRise, uLift;
+uniform float uEx, uRise;
 varying vec3 vW;
 varying vec2 vUv;
 varying float vS;
 void main() {
   vUv = vec2(uv.x, 1.0 - uv.y);
   vS = slice;
-  vW = vec3(position.xy, elev * uEx + uRise * slice + uLift);
+  vW = vec3(position.xy, elev * uEx + uRise * slice);
   gl_Position = projectionMatrix * vec4(vW, 1.0);
 }`
 
@@ -140,10 +139,11 @@ void main() {
 // Overlays are one class (alpha > 0), so the "any" channel of field() is their coverage.
 const FLAT = MASK + /* glsl */ `
 uniform vec3 uColor;
+varying float vS;
 void main() {
   float a = smoothstep(0.35, 0.65, field(vUv).x);
   if (a < 0.01) discard;
-  gl_FragColor = vec4(uColor, 0.78 * a);
+  gl_FragColor = vec4(uColor, (vS < 0.99 ? 0.2 : 0.78) * a); // faint lower slices give the column a body, like the water
   #include <colorspace_fragment>
 }`
 
@@ -156,7 +156,7 @@ export async function addWaterLayer(map, corners, root) {
   const origin = MercatorCoordinate.fromLngLat(map.getCenter(), 0)
   const s = origin.meterInMercatorCoordinateUnits()
   const toLocal = new Matrix4().makeTranslation(origin.x, origin.y, 0).scale(new Vector3(s, -s, s))
-  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uRise: { value: 0.5 }, uLift: { value: 0 } } })
+  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uRise: { value: 0.5 } } })
   const base = surface(dem, nw, se, origin, s)
   // The surface drawn once per slice, from just above the ground to the top, so the water has a body.
   const volume = Object.assign(new InstancedBufferGeometry().copy(base), { instanceCount: SLICES }) // copy() would leave it undefined and draw nothing
@@ -184,8 +184,8 @@ export async function addWaterLayer(map, corners, root) {
   }
   const overlays = Object.fromEntries(
     [['coherence', '#B7791F'], ['nisar', '#0E9DB8']].map(([key, hex]) => {
-      const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uEx: u.uEx, uRise: { value: 0 }, uLift: { value: 0.3 } } })
-      const o = new Mesh(base, m)
+      const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uEx: u.uEx, uRise: u.uRise } })
+      const o = new Mesh(volume, m)
       Object.assign(o, { frustumCulled: false, visible: false, renderOrder: 1 })
       scene.add(o)
       return [key, { mat: m, mesh: o, url: null }]

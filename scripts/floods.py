@@ -355,12 +355,41 @@ def phase_a(track, items, T, shape, sas, status):
         os.replace(f"{CACHE}/ref_{track}.tmp.npy", f"{CACHE}/ref_{track}.npy")
         lab, _ = label(permanent)
         lake = lab == np.bincount(lab[lab > 0]).argmax()  # Laguna de Bay: the largest permanent water body
+        del lab
+    else:  # no dry-season pass on this track: no reference, no permanent water, no lake
+        permanent = lake = np.zeros(shape, bool)
+        np.save(f"{CACHE}/ref_{track}.npy", np.full(shape, np.nan, "float16"))
+    other = np.unpackbits(np.load(f"{CACHE}/grid.npz")["lake"], count=H * W).astype(bool).reshape(shape) if os.path.exists(f"{CACHE}/grid.npz") and "lake" in np.load(f"{CACHE}/grid.npz").files else 0
+    update_grid(**{f"permanent_{track}": np.packbits(permanent), f"lake_{track}": np.packbits(lake), "lake": np.packbits(lake | other)})
+    shutil.rmtree(d)
+    print("A", track, "done:", n, "dry passes;", int(permanent.sum()), "permanent px,", int(lake.sum()), "lake px", flush=True)
 
-        def flood(s, z, t, shift, zthr, drop):
-            # Hybrid: water connected to the lake is inundation even when it returns every wet season, so it only has
-            # to be darker than the dry season. Isolated water, mostly paddies, must also be unusual for its month.
-            seasonal = z <= zthr
-            cand = (s < t + shift) & ~permanent & ~steep & (seasonal | (s - ref <= -drop))
+
+def per_barangay(mask, ids, n):
+    out = np.zeros(n + 1)
+    for a in range(0, mask.shape[0], CHUNK):
+        out += np.bincount(ids[a:a + CHUNK][mask[a:a + CHUNK]], minlength=n + 1)
+    return out
+
+
+def classify(s, thr, month, t, st):
+    """Classify against this track's replay-window dry-season reference, without historical normalization."""
+    steep, low_conf, blind = st
+    perm, lake, ref = t["perm"], t["lake"], t["ref"]
+    H, W = s.shape
+    lake_any = bool(lake.any())
+
+    def flood(shift, zthr, drop, want_nodata=False):
+        # A same-track dry-season reference within the replay window is the only baseline in this run.
+        # Isolated cropland and wetlands remain low-confidence because paddies can resemble flood water.
+        cand, nodata = np.empty(s.shape, bool), np.empty(s.shape, bool)
+        for a in range(0, H, CHUNK):
+            b = min(a + CHUNK, H)
+            sc = s[a:b].astype("float32")
+            baseline = ref[a:b].astype("float32")
+            cand[a:b] = (sc < thr + shift) & ~perm[a:b] & ~steep[a:b] & (sc - baseline <= -drop)
+            nodata[a:b] = ~np.isfinite(sc) | ~np.isfinite(baseline) | (steep[a:b] & ~perm[a:b])
+        if lake_any:
             lab, _ = label(cand | lake)
             linked = cand & np.isin(lab, np.unique(lab[lake]))
             f = linked | (cand & seasonal)

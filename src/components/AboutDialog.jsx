@@ -8,6 +8,7 @@ const SWATCH = 'mt-0.5 size-4 shrink-0 rounded-[4px] border'
 const KEY = [
   ['border-cobalt bg-cobalt/60', null, 'Flood signal', 'Radar saw open water on this pass.', 'Radar saw open water.'],
   ['border-cobalt/60 bg-white', null, 'None seen', 'Radar looked and saw no flood water.', 'Radar saw no flood water.'],
+  ['border-[#B7791F] bg-[#B7791F]/80', null, 'Coherence loss', 'Marks possible urban flooding: built-up radar returns stopped matching an earlier pass.', 'Possible urban flooding.'],
   ['border-muted/60', HATCH, 'Unknown', 'No view: no pass, steep ground, or built-up and tree cover. Never drawn as dry.', 'No view. Never drawn as dry.'],
 ]
 
@@ -38,8 +39,7 @@ export default function AboutDialog({ onClose, floods }) {
         </p>
 
         <div className="mt-4 rounded-xl bg-cobalt-tint px-4 py-3 text-sm leading-relaxed text-cobalt-ink sm:mt-6">
-          <p className="font-medium">{passes ? `Today: ${passes} observed Sentinel-1 passes` : 'Today: no observations loaded'}</p>
-          <p className="mt-0.5">{(floods?.coverageNote ?? 'Focus: Bay, Pila, Victoria, Santa Cruz').replace(/\.?$/, '.')} Pins with a halo have flood records.<span className="hidden sm:inline"> The rest are not mapped yet. Flood durations, exposure indices and photo validation are still to come.</span></p>
+          <p>{passes ? `${passes} observed Sentinel-1 passes. ` : 'No observations loaded. '}{(floods?.coverageNote ?? 'Focus: Bay, Pila, Victoria, Santa Cruz').replace(/\.?$/, '.')} Pins with a halo have flood records.<span className="hidden sm:inline"> The rest are not mapped yet. Flood durations, exposure indices and photo validation are still to come.</span></p>
         </div>
 
         <ul className="mt-4 space-y-2 border-t border-line pt-4 sm:mt-6 sm:space-y-2.5 sm:pt-6">

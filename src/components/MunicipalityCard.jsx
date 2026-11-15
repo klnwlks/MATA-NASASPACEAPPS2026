@@ -74,7 +74,6 @@ export default function MunicipalityCard({ municipality, psgcs, floods, onFrame,
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-cobalt text-white"><CloudLightning aria-hidden size={20} /></span>
           <div className="min-w-0 flex-1">
             <h2 className="text-xl font-medium leading-tight">{municipality.name}</h2>
-            <p className="text-sm text-muted">Observed flood signals · {psgcs.length} barangays · Sentinel-1</p>
           </div>
           <button type="button" aria-label="Close" onClick={onClose} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-cobalt-tint hover:text-cobalt"><X aria-hidden size={18} /></button>
         </div>

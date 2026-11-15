@@ -30,13 +30,12 @@ export default function Timeline({ floods, frame, onFrame }) {
         {f ? (
           <>
             <p className="whitespace-nowrap font-mono text-sm font-medium">{phtTime(f.utc)}</p>
-            <p className="text-xs text-muted">{f.platform.replace('SENTINEL-', 'S')} · {f.daysSincePrevious == null ? 'first pass' : `${f.daysSincePrevious} d after previous`} · {frame + 1}/{frames.length}</p>
-            {!!floods?.acquiredNotProcessed?.length && <p className="text-xs text-muted" title="Acquisitions at the catalogue check point that are absent from this replay; coverage elsewhere may differ.">{floods.acquiredNotProcessed.length} acquired passes not processed</p>}
+            <p className="text-xs text-muted">{f.daysSincePrevious == null ? 'First pass' : `${f.daysSincePrevious} d after previous`} · {frame + 1}/{frames.length}</p>
           </>
         ) : (
           <>
             <p className="text-sm font-medium">Replay · offline</p>
-            <p className="text-xs text-muted">Observations: none loaded</p>
+            <p className="text-xs text-muted">No observations loaded</p>
           </>
         )}
       </div>

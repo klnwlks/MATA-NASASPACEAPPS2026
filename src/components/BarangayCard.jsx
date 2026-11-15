@@ -13,8 +13,6 @@ function Row({ icon: Icon, tone, label, children, mono }) {
 }
 
 const STATE = { 1: ['Flood signal', 'bg-cobalt text-white'], 0: ['Below threshold', 'bg-page text-ink'], [-1]: ['Unknown', 'bg-page text-muted'] }
-const SOURCE = { openWater: 'Sentinel-1 radar', opera: 'OPERA', coherence: 'radar coherence', nisar: 'NISAR' }
-const sources = (keys) => keys.map((k) => SOURCE[k] ?? k).join(', ')
 const fmt = (n) => n.toLocaleString('en-PH', { maximumFractionDigits: n < 10 ? 1 : 0 })
 // One football field is about 0.71 ha, a size people can picture.
 const fields = (ha) => (ha < 0.4 ? 'less than half a football field' : `about ${fmt(ha / 0.714)} football field${ha / 0.714 < 1.5 ? '' : 's'}`)
@@ -80,7 +78,6 @@ function Observations({ rec, frame, frames, onFrame }) {
         <span className={`ml-auto rounded-lg px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
       </div>
       <Now rec={rec} frame={frame} />
-      {rec.seenBy[frame].length > 0 && <p className="mt-1 text-xs text-cobalt-ink">Detected by {sources(rec.seenBy[frame])}</p>}
       <SecondOpinions evidence={rec.evidence} frame={frame} />
       <History rec={rec} frames={frames} onFrame={onFrame} />
       {eps.length > 0 && (

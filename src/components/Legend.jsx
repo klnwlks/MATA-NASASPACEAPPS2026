@@ -1,7 +1,5 @@
 import { useState } from 'react'
 import { List, X } from 'lucide-react'
-import { shortDate } from '../data.js'
-import { DEPTH_EX } from '../map/water.js'
 
 const HATCH = 'repeating-linear-gradient(135deg, #56607A 0 1.5px, transparent 1.5px 5px)'
 const DEPTH = 'linear-gradient(90deg, #1A809E, #031A61)' // the two colours the water shader mixes from 0.1 to 2.5 m
@@ -9,7 +7,7 @@ const GRID = 'linear-gradient(#789234 0 1px, transparent 1px), linear-gradient(9
 const SWATCH = 'size-4 shrink-0 rounded-[4px] border'
 
 // Province overview key. Each state differs in fill pattern as well as colour: solid, empty, hatched.
-export default function Legend({ frame, coherence }) {
+export default function Legend({ coherence }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -23,12 +21,11 @@ export default function Legend({ frame, coherence }) {
           <li className="flex items-center gap-2"><span aria-hidden className={`${SWATCH} border-muted/60`} style={{ backgroundImage: HATCH }} />Unknown</li>
           {coherence && <li className="flex items-center gap-2"><span aria-hidden className={`${SWATCH} border-[#B7791F] bg-[#B7791F]/80`} />Urban flooding · coherence loss</li>}
         </ul>
-        <p className="mt-1.5 max-w-44 text-[11px] leading-tight text-muted">Sentinel-1{frame ? `, ${shortDate(frame.utc)}` : ', this pass'}. Unknown is never drawn as dry.{coherence ? ' Built-up areas lose radar coherence when flooded, so amber marks likely urban flooding.' : ''}</p>
         <div className="mt-2.5 max-w-44 text-sm">
           <span aria-hidden className="block h-2.5 rounded-[4px]" style={{ backgroundImage: DEPTH }} />
           <span className="mt-0.5 flex justify-between text-[11px] leading-tight text-muted"><span>shallow</span><span>2.5 m+</span></span>
         </div>
-        <p className="mt-1.5 max-w-44 text-[11px] leading-tight text-muted">Water depth when zoomed in. Height shows depth below the lake stage, drawn {DEPTH_EX}× taller than true. Indicative, not surveyed.</p>
+        <p className="mt-1.5 max-w-44 text-[11px] leading-tight text-muted">Water depth when zoomed in. Indicative, not surveyed.</p>
         <ul className="mt-2.5 space-y-1 text-sm">
           <li className="flex items-center gap-2"><span aria-hidden className={`${SWATCH} border-[#789234]/70 bg-[#CFE08A]`} style={{ backgroundImage: GRID, backgroundSize: '8px 8px' }} />Farmland · OSM</li>
         </ul>

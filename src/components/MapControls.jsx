@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Building2, Compass, Grid3x3, Minus, Moon, Plus, Rows3, Shapes, Sun } from 'lucide-react'
+import { Building2, Compass, Grid3x3, Minus, Moon, Plus, Rows3, Shapes, Sun, Trees } from 'lucide-react'
 
 const btn = 'grid size-10 place-items-center rounded-xl text-ink hover:bg-cobalt-tint hover:text-cobalt'
 
@@ -61,6 +61,7 @@ export default function MapControls({ map, show, onShow, onHome, minutes, onMinu
       <span className="my-1 h-px w-6 bg-line" aria-hidden />
       <Toggle on={show.boundaries} onChange={(v) => onShow({ ...show, boundaries: v })} label="Boundaries" tone="bg-cobalt-tint text-cobalt"><Shapes aria-hidden size={20} /></Toggle>
       <Toggle on={show.buildings} onChange={(v) => onShow({ ...show, buildings: v })} label="Buildings" tone="bg-amber-tint text-amber-ink"><Building2 aria-hidden size={20} /></Toggle>
+      <Toggle on={show.trees} onChange={(v) => onShow({ ...show, trees: v })} label="Trees" tone="bg-mint-tint text-mint-ink"><Trees aria-hidden size={20} /></Toggle>
       {hasCoherence && <Toggle on={show.coherence} onChange={(v) => onShow({ ...show, coherence: v })} label="Built-up coherence loss" tone="bg-amber-tint text-amber-ink"><Rows3 aria-hidden size={20} /></Toggle>}
       {hasNisar && <Toggle on={show.nisar} onChange={(v) => onShow({ ...show, nisar: v })} label="NISAR L-band darkening" tone="bg-cobalt-tint text-cobalt"><Grid3x3 aria-hidden size={20} /></Toggle>}
       <TimeOfDay minutes={minutes} onMinutes={onMinutes} followingPass={followingPass} onFollowPass={onFollowPass} />

@@ -9,6 +9,9 @@ import Status from './components/Status.jsx'
 import Credits from './components/Credits.jsx'
 import LakeChart from './components/LakeChart.jsx'
 import Legend from './components/Legend.jsx'
+import FloodMunicipalityPicker from './components/FloodMunicipalityPicker.jsx'
+import LoadingScreen from './components/LoadingScreen.jsx'
+import AboutDialog from './components/AboutDialog.jsx'
 import { loadBarangays, loadFloods, loadMunicipality } from './data.js'
 import { manilaMinutes, manilaTime } from './map/sun.js'
 
@@ -23,7 +26,7 @@ export default function App() {
   const [focusId, setFocusId] = useState(null) // the municipality the 3D layers belong to: under the screen centre when zoomed in
   const [manifests, setManifests] = useState({}) // munipsgc -> { status: 'loading' | 'ok' | 'failed', data }
   const requested = useRef(new Set())
-  const [show, setShow] = useState({ boundaries: true, buildings: true, coherence: true, nisar: true })
+  const [show, setShow] = useState({ boundaries: true, buildings: true, trees: true, coherence: true, nisar: true })
   const [fit, setFit] = useState(null)
   const [homeTick, setHomeTick] = useState(0)
   const [clockOverride, setClockOverride] = useState(null) // Manila minutes the user dialled in; null follows the satellite pass
@@ -33,6 +36,10 @@ export default function App() {
   const minutes = manilaMinutes(time)
 
   const report = useCallback((key, value) => setStatus((s) => (s[key] === value ? s : { ...s, [key]: value })), [])
+
+  // The project introduction opens every time the page loads, as soon as the loading screen hands over.
+  const [about, setAbout] = useState(false)
+  const onLoaded = useCallback(() => setAbout(true), [])
 
   useEffect(() => {
     loadBarangays().then(
@@ -105,10 +112,10 @@ export default function App() {
   return (
     <div className="relative h-full overflow-hidden">
       <div className="absolute inset-0">
-        <MapStage barangays={barangays} floods={floods} manifest={manifests[focusId]?.data ?? null} focus={focus} frame={frame} selectedId={selectedId} show={show} fit={fit} homeTick={homeTick} time={time} onSelect={select} onMunicipality={openMunicipality} onCenter={setFocusId} onStatus={report} onMap={setMap} />
-        <Navbar list={barangays?.list ?? []} municipalities={barangays?.municipalities ?? []} frames={floods?.frames.length} boundariesReady={!!barangays} onSelect={select} onMunicipality={openMunicipality} />
+        <MapStage barangays={barangays} floods={floods} manifest={manifests[focusId]?.data ?? null} focus={focus} focusPsgc={focusId} frame={frame} selectedId={selectedId} selectedMunicipalityId={municipality?.psgc ?? null} show={show} fit={fit} homeTick={homeTick} time={time} onSelect={select} onMunicipality={openMunicipality} onCenter={setFocusId} onStatus={report} onMap={setMap} />
+        <Navbar list={barangays?.list ?? []} municipalities={barangays?.municipalities ?? []} frames={floods?.frames.length} boundariesReady={!!barangays} onSelect={select} onMunicipality={openMunicipality} onAbout={() => setAbout(true)} picker={<FloodMunicipalityPicker municipalities={barangays?.municipalities ?? []} floods={floods} selected={municipality?.psgc} onSelect={openMunicipality} />} />
         <Status status={status} />
-        <div className="pointer-events-auto absolute left-[4.75rem] top-20 z-10 rounded-xl bg-chalk px-3 py-2 text-xs text-muted shadow-float md:left-3">
+        <div className="pointer-events-auto absolute left-3 top-20 z-10 hidden rounded-xl bg-chalk px-3 py-2 text-xs text-muted shadow-float sm:block">
           <p>Focus: Bay, Pila, Victoria, Santa Cruz</p>
           {floods?.coverageNote && <p>{floods.coverageNote}</p>}
         </div>
@@ -119,6 +126,8 @@ export default function App() {
         <LakeChart lake={floods?.lake} frames={floods?.frames ?? []} frame={frame} />
         <Timeline floods={floods} frame={frame} onFrame={setFrame} />
         <Credits />
+        <LoadingScreen status={status} onDone={onLoaded} />
+        {about && <AboutDialog floods={floods} onClose={() => setAbout(false)} />}
       </div>
     </div>
   )

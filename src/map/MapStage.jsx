@@ -3,10 +3,11 @@ import { Map, Marker, addProtocol, removeProtocol } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { buildStyle, HOME_VIEW, PROVINCE_VIEW, SHADOW_BUCKETS } from './style.js'
-import { addBoundaryLayers, setFrame, setSelection, setStates, BOUNDARY_LAYERS, PIN_ZOOM } from './boundaries.js'
+import { addBoundaryLayers, setFrame, setSelection, setMunicipalitySelection, setLabelMunicipalities, setStates, BOUNDARY_LAYERS, PIN_ZOOM } from './boundaries.js'
 import { addTreeLayer } from './trees.js'
 import { addWaterLayer, floodStage } from './water.js'
 import { createSlot } from './slot.js'
+import { addFarmPattern } from './farmPattern.js'
 import { applySun } from './sun.js'
 
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -20,8 +21,13 @@ const dur = (ms) => (reduceMotion() ? 0 : ms)
 const WATER_ZOOM = 11
 const TREES_ZOOM = 13
 const gate = (on, zoom, at) => (on ? zoom >= at - 0.5 : zoom >= at)
+const PIN_BASE = 'grid place-items-center rounded-full border-2 shadow-float'
+function stylePin(pin, name, mapped) {
+  pin.className = mapped ? `${PIN_BASE} size-10 border-white bg-cobalt text-white ring-4 ring-cobalt/30 hover:bg-cobalt-ink` : `${PIN_BASE} size-8 border-line bg-chalk text-muted hover:text-ink`
+  pin.setAttribute('aria-label', mapped ? `${name}, municipality: observed flood runs` : `${name}, municipality: no observations loaded`)
+}
 
-export default function MapStage({ barangays, floods, manifest, focus, frame, selectedId, show, fit, homeTick, time, onSelect, onMunicipality, onCenter, onStatus, onMap }) {
+export default function MapStage({ barangays, floods, manifest, focus, focusPsgc, frame, selectedId, selectedMunicipalityId, show, fit, homeTick, time, onSelect, onMunicipality, onCenter, onStatus, onMap }) {
   const el = useRef(null)
   const mapRef = useRef(null)
   const live = useRef({})
@@ -31,7 +37,7 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
   const pins = useRef([])
   const [zoomed, setZoomed] = useState({ water: false, trees: false })
   useEffect(() => {
-    live.current = { onSelect, onMunicipality, onCenter, onStatus, barangays, time, frame, focus }
+    live.current = { onSelect, onMunicipality, onCenter, onStatus, barangays, floods, time, frame, focus, selectedId, selectedMunicipalityId }
   })
   // Style-dependent work waits for the first 'load'; map.loaded() is false whenever tiles are in flight, so it cannot gate this.
   const whenLoaded = (fn) => (loaded.current ? fn() : queue.current.push(fn))
@@ -93,6 +99,7 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
     })
     map.on('load', () => {
       loaded.current = true
+      addFarmPattern(map)
       onMap(map)
       applySun(map, live.current.time)
       for (const fn of queue.current.splice(0)) fn()
@@ -130,13 +137,19 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
     if (!map || !barangays) return
     whenLoaded(() => {
       addBoundaryLayers(map, barangays, (id) => live.current.onSelect(id))
-      map.fitBounds(barangays.bounds, { ...PROVINCE_VIEW, padding: padding(), duration: 0 })
+      setSelection(map, live.current.selectedId)
+      setMunicipalitySelection(map, live.current.selectedMunicipalityId)
+      // The province determines the widest view; the initial and reset views focus on Bay.
+      const provinceView = map.cameraForBounds(barangays.bounds, { padding: 0, bearing: 0, pitch: 0 })
+      if (provinceView) map.setMinZoom(provinceView.zoom)
+      const bay = barangays.municipalities.find((m) => m.name.toLowerCase() === 'bay')
+      map.fitBounds(bay?.bounds ?? barangays.bounds, { ...HOME_VIEW, padding: padding(), duration: 0 })
       pins.current = barangays.municipalities.map((m) => {
         const pin = document.createElement('button')
         pin.type = 'button'
         pin.style.display = map.getZoom() < 8 || map.getZoom() >= PIN_ZOOM ? 'none' : ''
-        pin.setAttribute('aria-label', `${m.name}, municipality: observed flood runs`)
-        pin.className = 'grid size-9 place-items-center rounded-full border-2 border-white bg-cobalt text-white shadow-float hover:bg-cobalt-ink'
+        pin.dataset.psgc = m.psgc
+        stylePin(pin, m.name, !!live.current.floods?.municipalities[m.psgc])
         pin.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>'
         // Keep the map from turning pin presses into a barangay click underneath.
         for (const type of ['mousedown', 'mouseup', 'touchstart', 'touchend', 'dblclick']) pin.addEventListener(type, (e) => e.stopPropagation())
@@ -149,6 +162,17 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
       })
     })
   }, [barangays])
+
+  // Pins with published flood records stand out; the rest are plain reference markers. Floods may arrive after the pins.
+  useEffect(() => {
+    if (!floods) return
+    for (const pin of pins.current) stylePin(pin, barangays?.municipalities.find((m) => m.psgc === pin.dataset.psgc)?.name ?? '', !!floods.municipalities[pin.dataset.psgc])
+  }, [floods, barangays])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (map && barangays) whenLoaded(() => setLabelMunicipalities(map, Object.keys(floods?.municipalities ?? {})))
+  }, [floods, barangays])
 
   // Observed state per barangay per frame: the polygons carry the state strings, a frame change only repaints.
   const states = floods?.states
@@ -166,6 +190,7 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
   }, [frame])
 
   useEffect(() => setSelection(mapRef.current, selectedId), [selectedId])
+  useEffect(() => setMunicipalitySelection(mapRef.current, selectedMunicipalityId), [selectedMunicipalityId])
 
   // The water surface (and the coherence and NISAR overlays that ride on it) is one mesh for the focused municipality.
   // It exists only from WATER_ZOOM and only once that municipality's manifest has loaded; the slot unloads it on focus change.
@@ -185,7 +210,7 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
     })
   }, [waterKey, manifest, floods, frame, show])
 
-  const treesKey = focus && zoomed.trees ? focus.psgc : null
+  const treesKey = focusPsgc && zoomed.trees && show.trees ? focusPsgc : null
   useEffect(() => {
     if (slots.current) whenLoaded(() => slots.current?.trees.set(treesKey))
   }, [treesKey])
@@ -214,7 +239,8 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
   useEffect(() => {
     const map = mapRef.current
     if (!map || !homeTick || !live.current.barangays) return
-    map.fitBounds(live.current.barangays.bounds, { ...PROVINCE_VIEW, padding: padding(), duration: dur(1200) })
+    const bay = live.current.barangays.municipalities.find((m) => m.name.toLowerCase() === 'bay')
+    map.fitBounds(bay?.bounds ?? live.current.barangays.bounds, { ...HOME_VIEW, padding: padding(), duration: dur(1200) })
   }, [homeTick])
 
   return (

@@ -45,6 +45,9 @@ export function addBoundaryLayers(map, { geojson, outlines, municipalities }, on
   map.addLayer({ id: 'bgy-unknown', type: 'fill', source: SRC, layout: hidden, paint: { 'fill-pattern': 'unknown-hatch', 'fill-opacity': 0 } })
   map.addLayer({ id: 'bgy-line', type: 'line', source: SRC, layout: line, paint: { 'line-color': COBALT, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 12, 1, 14, 1.5], 'line-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.45, 13, 0.85] } })
   map.addLayer({ id: 'muni-line', type: 'line', source: MUNI, layout: line, paint: { 'line-color': COBALT_INK, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.4, 12, 2.2], 'line-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.9, 14, 0.4] } })
+  map.addLayer({ id: 'muni-sel-fill', type: 'fill', source: MUNI, filter: none, paint: { 'fill-color': COBALT, 'fill-opacity': 0.2 } })
+  map.addLayer({ id: 'muni-sel-casing', type: 'line', source: MUNI, filter: none, layout: line, paint: { 'line-color': '#FFFFFF', 'line-width': 7 } })
+  map.addLayer({ id: 'muni-sel-line', type: 'line', source: MUNI, filter: none, layout: line, paint: { 'line-color': COBALT_INK, 'line-width': 4 } })
   map.addLayer({ id: 'bgy-sel-fill', type: 'fill', source: SRC, filter: none, paint: { 'fill-color': COBALT, 'fill-opacity': 0.25 } })
   map.addLayer({ id: 'bgy-sel-casing', type: 'line', source: SRC, filter: none, layout: line, paint: { 'line-color': '#FFFFFF', 'line-width': 11 } })
   map.addLayer({ id: 'bgy-sel-line', type: 'line', source: SRC, filter: none, layout: line, paint: { 'line-color': COBALT, 'line-width': 5 } })
@@ -99,4 +102,16 @@ export function setSelection(map, id) {
   if (!map?.getLayer('bgy-sel-fill')) return
   const f = id ? ['==', ['get', 'psgc'], id] : none
   for (const layer of ['bgy-sel-fill', 'bgy-sel-casing', 'bgy-sel-line']) map.setFilter(layer, f)
+}
+
+export function setMunicipalitySelection(map, id) {
+  if (!map?.getLayer('muni-sel-fill')) return
+  const f = id ? ['==', ['get', 'munipsgc'], id] : none
+  for (const layer of ['muni-sel-fill', 'muni-sel-casing', 'muni-sel-line']) map.setFilter(layer, f)
+}
+
+// Barangay names show only for municipalities with published flood records; the others stay unlabelled.
+export function setLabelMunicipalities(map, ids) {
+  if (!map?.getLayer('bgy-label')) return
+  map.setFilter('bgy-label', ['in', ['get', 'munipsgc'], ['literal', ids]])
 }

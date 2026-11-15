@@ -21,7 +21,7 @@ export default function LakeChart({ lake, frames, frame }) {
   const label = gapDays <= NEAR_DAYS ? `${near.m.toFixed(2)} m · ${gapDays ? `${gapDays} d from pass` : 'same day'}` : `no altimetry within ${NEAR_DAYS} d`
   const clip = (p) => Math.min(Math.max(x(Date.parse(p.utc)), PAD.l), W - PAD.r)
   return (
-    <figure className="pointer-events-auto absolute bottom-[4.75rem] left-1/2 z-10 hidden w-[34rem] -translate-x-1/2 items-center gap-3 rounded-2xl bg-chalk px-3 py-2 shadow-float xl:flex">
+    <figure className="pointer-events-auto absolute bottom-[6.5rem] left-1/2 z-10 hidden w-[34rem] -translate-x-1/2 items-center gap-3 rounded-2xl bg-chalk px-3 py-2 shadow-float xl:flex">
       <figcaption className="w-40 shrink-0 leading-tight">
         <p className="text-sm font-medium">Laguna de Bay level</p>
         <p className="font-mono text-xs text-muted">{label}</p>

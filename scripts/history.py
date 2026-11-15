@@ -17,6 +17,7 @@ from floods import Q_MIN, Q_STEP, Q_NONE, SIG_STEP, Sas, province_bbox, quantise
 START, END = "2020-11-15", "2024-11-14"
 BLOCK_ROWS, CALC_ROWS = 128, 16
 WORKERS = int(os.environ.get("S1_HISTORY_WORKERS", "8"))
+os.environ.setdefault("GDAL_HTTP_TIMEOUT", "120")  # a stalled COG read fails and is retried by read_blocks instead of hanging the run
 
 
 def main(only):

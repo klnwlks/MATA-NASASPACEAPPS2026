@@ -1,9 +1,12 @@
+import { FARM_PATTERN } from './farmPattern.js'
+
 export const SCHEMATIC_HEIGHT_M = 6
 export const TERRAIN_EXAGGERATION = 1.4
 export const HOME_VIEW = { bearing: 180, pitch: 62 } // municipality drill-down, looking south from the lake
 export const PROVINCE_VIEW = { bearing: 180, pitch: 45 } // overview: flatter, so 682 barangays stay legible
 
-const C = { land: '#F2EFE0', lake: '#5C95F2', park: '#8ED9AF', forest: '#3E9B5A', road: '#E8807F', farm: '#DCE7A6', town: '#EFE4CF' }
+const C = { land: '#F2EFE0', lake: '#5C95F2', park: '#8ED9AF', forest: '#3E9B5A', road: '#E8807F', farm: '#CFE08A', town: '#EFE4CF' }
+const FARM = ['in', ['get', 'kind'], ['literal', ['farmland', 'farmyard', 'orchard']]]
 const kind = (...k) => ['in', ['get', 'kind'], ['literal', k]]
 // Base-2 growth keeps a road's on-screen width proportional to the ground it covers.
 const width = (z12, z18) => ['interpolate', ['exponential', 2], ['zoom'], 12, z12, 18, z18]
@@ -46,7 +49,10 @@ export function buildStyle(origin) {
       { id: 'land', type: 'background', paint: { 'background-color': C.land } },
       { id: 'relief', type: 'color-relief', source: 'shade', paint: { 'color-relief-color': ['interpolate', ['linear'], ['elevation'], 0, '#F2EFE0', 15, '#E9ECC6', 60, '#CFE29B', 200, '#9FD184', 450, '#66B86A', 800, '#3E9B5A', 1100, '#2B7D49'] } },
       { id: 'hillshade', type: 'hillshade', source: 'shade', paint: { 'hillshade-exaggeration': 0.7, 'hillshade-illumination-anchor': 'map', 'hillshade-illumination-direction': 250, 'hillshade-shadow-color': '#5E4A22', 'hillshade-highlight-color': '#FFF6DD', 'hillshade-accent-color': '#D9A441' } },
-      { id: 'farm', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('farmland', 'farmyard', 'orchard'), paint: { 'fill-color': C.farm, 'fill-opacity': 0.55 } },
+      // Fields: a flat tint from afar, then edges and a paddy grid once individual plots are legible (z13 and z14).
+      { id: 'farm', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: FARM, paint: { 'fill-color': C.farm, 'fill-opacity': 0.7 } },
+      { id: 'farm-grid', type: 'fill', source: 'base', 'source-layer': 'landuse', minzoom: 14, filter: FARM, paint: { 'fill-pattern': FARM_PATTERN, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 0.9] } },
+      { id: 'farm-edge', type: 'line', source: 'base', 'source-layer': 'landuse', minzoom: 13, filter: FARM, paint: { 'line-color': '#9DB04E', 'line-opacity': 0.8, 'line-width': width(0.15, 2) } },
       { id: 'town', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('residential', 'commercial', 'industrial', 'school', 'college', 'university'), paint: { 'fill-color': C.town, 'fill-opacity': 0.7 } },
       { id: 'park', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('park', 'nature_reserve', 'grass', 'garden'), paint: { 'fill-color': C.park, 'fill-opacity': 0.8 } },
       { id: 'forest', type: 'fill', source: 'base', 'source-layer': 'landuse', filter: kind('wood', 'forest'), paint: { 'fill-color': C.forest, 'fill-opacity': 0.3 } },

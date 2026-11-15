@@ -20,7 +20,7 @@ Goal: a SAR-based decision-support web app. Using multi-temporal Sentinel-1 back
 
 Cadence: Sentinel-1 is not daily. Bay is covered by one descending track (relative orbit 32, about 05:47 Philippine time): every 12 days until mid-2025 (S1A alone), then mostly every 6 days (S1A+S1C, later S1C+S1D). The ascending track 142 exists from April 2025 but is not mixed in: a second viewing geometry needs its own reference and adds false changes.
 
-Current phase: **Bay, Laguna** (PSGC `0403402000`, 15 barangays), the last two years of track-32 passes (2024-11-15 to 2026-11-15). 3D stage (GLO-30 terrain, OSM buildings, COD-AB barangays) plus a replay of every observed pass, per-barangay flooded runs as "between X and Y days" ranges, municipality-wide flood runs, per-pass second opinions (NASA OPERA DSWx-S1; NISAR L-band from June 2026) and the Laguna de Bay level from altimetry (DAHITI). Storms are not named by the app; runs are dated only.
+Current phase: **Bay, Laguna** (PSGC `0403402000`, 15 barangays), the last two years of track-32 passes (2024-11-15 to 2026-11-15). 3D stage (GLO-30 terrain, OSM buildings, COD-AB barangays) plus a replay of every observed pass, per-pass second opinions (NASA OPERA DSWx-S1; InSAR coherence over buildings from ASF HyP3; NISAR L-band from June 2026), per-barangay flooded runs as "between X and Y days" ranges combined across all sources with the sources named, municipality-wide flood runs, and the Laguna de Bay level from altimetry (DAHITI). Storms are not named by the app; runs are dated only.
 
 Success for this phase: a judge recognises Bay on Laguna de Bay, steps through real pass dates, opens a barangay and reads a duration range bounded by real passes, and sees where the record is unknown.
 
@@ -38,7 +38,7 @@ Time and duration of flooding, with uncertainty built into the display, at baran
 
 - In scope now: everything above plus the observed-pass replay, flood overlay per pass, per-barangay flood area (high and low confidence), duration ranges, second opinions and lake level.
 - Out of scope now: rainfall, exposure indices, photo upload, modelled frames between passes, storm attribution.
-- Terminology: barangay, PSGC, pass, observed vs modeled vs unknown, low confidence (water on cropland or wetland, often paddies), "flooded for between X and Y days".
+- Terminology: barangay, PSGC, pass, observed vs modeled vs unknown, low confidence (water on cropland or wetland, often paddies), second opinion, seen by, "flooded for between X and Y days".
 - Undecided: exposure index definition, boundary vintage for historical joins, whether to add track 142.
 
 ## Brand Commitments

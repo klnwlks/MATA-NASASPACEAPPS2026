@@ -1,6 +1,6 @@
 # Data provenance
 
-Retrieved 2026-11-15 (area moved from Los Baños to Bay, Laguna). Regenerate with the scripts in `scripts/` (see each header).
+Retrieved 2026-11-15 (area moved from Los Baños to Bay, Laguna). Regenerate with the scripts in `scripts/` (see each header). Flood pipeline order: `floods.py` → `flood_summary.py` → `opera.py`, `nisar.py`, `coherence.py` (need `.edl_token`) → `evidence.py` → `combine.py`; `lake_level.py` (needs `.dahiti_token`) stands alone.
 
 | File | Source | Version / date | Licence | Transformation |
 |---|---|---|---|---|
@@ -11,6 +11,7 @@ Retrieved 2026-11-15 (area moved from Los Baños to Bay, Laguna). Regenerate wit
 | `floods/` | Sentinel-1 RTC (Microsoft Planetary Computer `sentinel-1-rtc`, VV), descending relative orbit 32, 84 passes 2024-11-19 to 2026-10-29; acquisition list from Copernicus Data Space; Copernicus DEM GLO-30; ESA WorldCover 2021 v200 | retrieved 2026-11-15 | Copernicus Sentinel data terms; WorldCover CC BY 4.0 | `scripts/floods.py` then `scripts/flood_summary.py`: change detection against a Feb-Apr median, per-pass Otsu threshold, 3 dB drop, slope under 5 degrees. One RGBA PNG per pass (Web Mercator, about 10 m) plus `manifest.json` with per-barangay flood and low-confidence hectares, flooded state and duration ranges. 7 acquisitions absent from the RTC set are listed as not processed |
 | `floods/lake.json` | DAHITI (DGFI-TUM) water-level altimetry, target 40866 "Bay, Lake" (Laguna de Bay) | retrieved 2026-11-15; 52 points 2024-10-23 to 2026-10-09 | DAHITI terms, cite DGFI-TUM | `scripts/lake_level.py`: water surface elevation above the geoid (m) with uncertainty, unchanged. Drawn as context beside the replay; not used in flood classification |
 | `floods/manifest.json` → `evidence` | NASA OPERA DSWx-S1 v1 (JPL, PO.DAAC), tile T51PUR, 559 granules 2024-11-19 to 2026-11-13; NISAR L2 GCOV provisional and V1 (NASA/ISRO, ASF DAAC), 36 acquisitions 2026-06-23 to 2026-11-02 | retrieved 2026-11-15 | NASA open data | `scripts/opera.py`, `scripts/nisar.py`, `scripts/evidence.py`: OPERA open water plus inundated vegetation on the same pass, flagged at >= 2 ha and >= 3x its dry-season noise. NISAR HV darkening >= 3 dB against same-track low-lake acquisitions (June-July 2026), flagged at >= 2 ha and >= 3x the rate 2 km inland; used for passes within 6 days, and the gap is shown |
+| `floods/coherence/`, `floods/nisar/`, runs in `manifest.json` | ASF HyP3 `INSAR_ISCE_MULTI_BURST` (ISCE2), Sentinel-1 bursts 067578/067579 IW1-IW2, 88 consecutive track-32 pairs 2024-11-19 to 2026-11-04, 10x2 looks (about 40 m) | processed 2026-11-15 | Copernicus Sentinel data terms; ASF HyP3 | `scripts/coherence.py`, `scripts/evidence.py`: built-up (WorldCover) pixels 0.2 or more below their dry-season median coherence, flagged at >= 2 ha and >= 3x the loss on built-up land 2 km inland. `scripts/combine.py`: a pass is flooded if any source flags it; runs list their sources. Overlays: coherence loss amber stripes, NISAR darkening cyan dots |
 
 ## Known limits
 

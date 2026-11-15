@@ -38,9 +38,10 @@ Terse, label first, then the fact. An instrument reporting status.
 
 - Navbar: search `Barangay or PSGC` · status chip `Observations: 84 Sentinel-1 dates` or `Observations: none loaded` (never `0`: a zero reads as "no flooding") · `Sources`
 - Empty sidebar: `No barangay selected` / `15 barangays · Bay, Laguna. Select on map or list.`
-- Selected sidebar: rows `PSGC`, `Municipality`, `Geometry`; section `This pass` → `Flooded` / `No flood detected` / `Unknown`, flood and low-confidence hectares, then `Flooded runs` as `between X and Y days` (or `upper bound unknown`).
+- Selected sidebar: rows `PSGC`, `Municipality`, `Geometry`; section `This pass` → `Flooded` / `No flood seen` / `Unknown` across all sources, `Seen by …`, open-water and low-confidence hectares, `Second opinions` (one verdict per source: `Flood signal` / `None seen` / `No acquisition`), then `Flooded runs` as `between X and Y days` (or `upper bound unknown`) with `seen by …`.
 - Timeline: one stop per observed pass, labelled in Philippine time with satellite and `N d after previous`, so 6- and 12-day jumps never read as daily.
 - Flood overlay: cyan for flood (kept apart from the cobalt selection), cyan stripes for low confidence, grey veil for unknown (no data, steep, or radar-blind built-up and tree cover). Unknown is never drawn as dry; the barangay card says `No flood seen` and how much of the barangay the radar can see, never `No flood`.
+- Evidence overlays (toggles under Buildings): built-up coherence loss in amber stripes, NISAR HV darkening in cyan dots. Pattern differs from the solid open-water frames, so the layers stay apart without relying on colour.
 - States: `Terrain · loading` (`GLO-30 tiles`), `Terrain · unavailable` (`Flat fallback. Elevation not rendered.`), `Boundaries · failed` (`Selection disabled.`)
 - Disclaimer: `Not an official hazard map`
 - Sources panel: `Elevation · GLO-30` / `Buildings · OSM` / `Boundaries · COD-AB`, one line each on the limits.

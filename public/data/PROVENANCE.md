@@ -1,5 +1,14 @@
 # Data provenance
 
+## National scope in preparation
+
+- `provinces.geojson`: OCHA COD-AB Philippines v03, `phl_admin2`, valid 2025-02-13, PSA/NAMRIA via HDX, CC BY-IGO. `scripts/provinces.py` preserves all 88 admin-2 areas, including Metro Manila districts, with geometry simplified at 0.0005 degrees.
+- `provinces/<pcode>/barangays.geojson`: the same COD-AB release, `phl_admin4`, extracted by `scripts/priority_boundaries.py` for Cagayan, Agusan del Norte, Pangasinan, Pampanga and Laguna; geometry simplified at 0.00001 degrees.
+- Priority selection uses river and coastal flood exposure in the 2025 WorldRiskReport as [reported by GMA News](https://www.gmanetwork.com/news/topstories/nation/960359/philippines-most-disaster-prone-country-2025/story/). The first four are its four highest-exposure provinces; Laguna is retained from the original project scope. This is exposure, not a ranking of observed floods during the replay window.
+- The current run uses only Sentinel-1 observations and dry-season references within 2024-11-15 to 2026-11-15. Four-year seasonal normalization and second opinions are deferred. The national replay is not yet published.
+
+## Existing Bay replay
+
 Retrieved 2026-11-15 (area moved from Los Baños to Bay, Laguna). Regenerate with the scripts in `scripts/` (see each header). Flood pipeline order: `history.py` → `floods.py [track ...]` → `flood_summary.py` → `opera.py`, `nisar.py`, `coherence.py` (need `.edl_token`) → `evidence.py` → `combine.py`; `lake_level.py` (needs `.dahiti_token`) stands alone.
 
 | File | Source | Version / date | Licence | Transformation |

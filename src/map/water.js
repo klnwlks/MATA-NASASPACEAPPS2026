@@ -9,7 +9,8 @@
 import { BufferAttribute, Camera, Color, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector2, Vector3, Vector4, WebGLRenderer } from 'three'
 import { MercatorCoordinate } from 'maplibre-gl'
 
-const SLICES = 4
+const SLICES = 6
+export const DEPTH_EX = 6 // vertical exaggeration of water depth alone (not terrain): metre-scale depths are invisible at map scale
 const RIPPLE_FPS = 12
 const RIPPLE_MS = 3000
 const DEM_N = 2 ** 12 // the terrain's own tile level, so the surface follows the ground MapLibre draws
@@ -71,7 +72,7 @@ function surface(dem, nw, se, origin, s) {
 
 const VERT = /* glsl */ `
 attribute float elev, slice;
-uniform float uEx, uStage, uFilm;
+uniform float uEx, uStage, uFilm, uDepthEx;
 varying vec3 vW;
 varying vec2 vUv;
 varying float vS, vD;
@@ -79,7 +80,7 @@ void main() {
   vUv = vec2(uv.x, 1.0 - uv.y);
   vS = slice;
   vD = max(uStage, elev + uFilm) - elev; // depth in metres, never below the film
-  vW = vec3(position.xy, (elev + vD * slice) * uEx);
+  vW = vec3(position.xy, (elev + vD * uDepthEx * slice) * uEx);
   gl_Position = projectionMatrix * vec4(vW, 1.0);
 }`
 
@@ -120,7 +121,7 @@ void main() {
   float edge = smoothstep(0.35, 0.65, wet);
   if (vS < 0.99) { // lower slices of the water column: a faint tint so a sideways view sees a filled body, not a floating sheet
     if (edge < 0.01) discard;
-    gl_FragColor = vec4(mix(vec3(0.1, 0.5, 0.62), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD)) * uAmb, 0.16 * edge);
+    gl_FragColor = vec4(mix(vec3(0.1, 0.5, 0.62), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD)) * uAmb, 0.11 * edge);
     #include <colorspace_fragment>
     return;
   }
@@ -151,7 +152,7 @@ varying float vS;
 void main() {
   float a = uVeil > 0.5 ? veilCover(vUv) : smoothstep(0.35, 0.65, field(vUv).x);
   if (a < 0.01) discard;
-  gl_FragColor = vec4(uColor, uAlpha * (vS < 0.99 ? 0.25 : 1.0) * a);
+  gl_FragColor = vec4(uColor, uAlpha * (vS < 0.99 ? 0.15 : 1.0) * a);
   #include <colorspace_fragment>
 }`
 
@@ -165,7 +166,7 @@ export async function addWaterLayer(map, corners, root) {
   const origin = MercatorCoordinate.fromLngLat(map.getCenter(), 0)
   const s = origin.meterInMercatorCoordinateUnits()
   const toLocal = new Matrix4().makeTranslation(origin.x, origin.y, 0).scale(new Vector3(s, -s, s))
-  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uStage: { value: -1000 }, uFilm: { value: 0.1 } } })
+  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uStage: { value: -1000 }, uFilm: { value: 0.1 }, uDepthEx: { value: DEPTH_EX } } })
   const base = surface(dem, nw, se, origin, s)
   // The surface drawn once per slice, from just above the ground to the top, so the water has a body.
   const volume = Object.assign(new InstancedBufferGeometry().copy(base), { instanceCount: SLICES }) // copy() would leave it undefined and draw nothing
@@ -193,7 +194,7 @@ export async function addWaterLayer(map, corners, root) {
   }
   const overlays = Object.fromEntries(
     [['coherence', '#B7791F'], ['nisar', '#0E9DB8']].map(([key, hex]) => {
-      const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uAlpha: { value: 0.78 }, uVeil: { value: 0 }, uEx: u.uEx, uStage: { value: -1000 }, uFilm: { value: 0.3 } } }) // evidence layers carry no depth: a thin slab
+      const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uAlpha: { value: 0.78 }, uVeil: { value: 0 }, uEx: u.uEx, uStage: u.uStage, uFilm: { value: 0.3 }, uDepthEx: u.uDepthEx } }) // evidence layers ride the same water table, so they stand as tall as the water beside them
       const o = new Mesh(volume, m)
       Object.assign(o, { frustumCulled: false, visible: false, renderOrder: 1 })
       scene.add(o)
@@ -201,7 +202,7 @@ export async function addWaterLayer(map, corners, root) {
     }),
   )
   // Unknown (no data, steep, radar-blind) stays on the ground: it shares the frame's mask and carries no water depth.
-  const veil = new Mesh(volume, new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: u.uMask, uSize: u.uSize, uColor: { value: new Color('#787878') }, uAlpha: { value: 0.15 }, uVeil: { value: 1 }, uEx: u.uEx, uStage: { value: -1000 }, uFilm: { value: 0.05 } } }))
+  const veil = new Mesh(volume, new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: u.uMask, uSize: u.uSize, uColor: { value: new Color('#787878') }, uAlpha: { value: 0.15 }, uVeil: { value: 1 }, uEx: u.uEx, uStage: { value: -1000 }, uFilm: { value: 0.05 }, uDepthEx: { value: 1 } } }))
   Object.assign(veil, { frustumCulled: false, renderOrder: 1 })
   scene.add(veil)
   // Each repaint redraws the whole map (terrain, imagery, buildings, trees), so ripples run only while something changes.

@@ -1,7 +1,7 @@
 """Turn the class rasters and per-barangay stats from floods.py into replay frames and per-barangay flood records, per municipality.
 
 Open water: a barangay counts as flooded on a date when its high-confidence flood area is at least FLOOR_HA and at least
-three times its own noise level (95th percentile of flood area on dry-season reference dates of the same track, where no
+NOISE_FACTOR times its own noise level (95th percentile of flood area on dry-season reference dates of the same track, where no
 flood is expected). Low-confidence water (cropland, wetland) is reported but never counts. A pass where fewer than
 MIN_VISIBLE of the barangay was visible to the radar is unknown (-1). A track with no dry-season reference pass has no noise
 level: its passes are unknown for open water (never judged against a made-up level). Combined state and duration runs
@@ -27,7 +27,7 @@ from rasterio.warp import transform_geom
 
 from common import CACHE, FLOODS, NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW, BLIND, crop_corners, features, muni_crops, muni_mask, px_ha
 
-FLOOR_HA, NOISE_FACTOR, MIN_VISIBLE = 2.0, 3.0, 0.25
+FLOOR_HA, NOISE_FACTOR, MIN_VISIBLE = 1.0, 2.0, 0.15  # loosened from 2.0, 3.0, 0.25 to flag more readily; more false positives expected
 # RGBA per class: unknown (no data, steep, radar-blind) is a pale grey veil, never drawn as dry; flood is cyan, apart from
 # the cobalt selection; low confidence uses the same alpha channel at 170 and the viewer draws it fainter and paler.
 UNKNOWN = (120, 120, 120, 70)
@@ -102,7 +102,8 @@ def main():
     dry_ref = {utc(d) for d in g["dry_season"]}
     frames = [{"utc": d, "platform": str(s["platforms"][i]).upper(), "track": t, "id": f"{d[:10].replace('-', '')}_{t}", "thresholdDb": round(float(s["thresholds"][i]), 2),
                "daysSincePrevious": (day(d) - day(dates[k - 1])).days if k else None} for k, (i, d, t) in enumerate(zip(order, dates, tracks))]
-    tag = f"{time.time_ns():x}"
+    reuse = sys.argv[sys.argv.index("--reuse-frames") + 1] if "--reuse-frames" in sys.argv else None  # same frames, new states
+    tag = reuse or f"{time.time_ns():x}"
     for f in frames:
         f["file"] = f"{f['id']}_{tag}.png"
     acquired = unprocessed_acquisitions(g["acquired"], frames)
@@ -121,6 +122,8 @@ def main():
     for k, (i, f) in enumerate(zip(order, frames)):
         # Existing images can have the same date and municipality but a different grid or detection method.
         # Rewrite them rather than silently reusing stale masks.
+        if reuse:
+            continue
         todo = list(munis)
         c = np.load(f"{CACHE}/cls/{f['id']}.npz")["c"]
         jobs = []

@@ -33,10 +33,11 @@ export async function loadBarangays() {
 // context only: if it is missing the replay still works without it.
 export async function loadFloods() {
   const get = (file) => fetch(`${FLOODS}${file}`)
-  const [index, states, lake] = await Promise.all([get('index.json'), get('states.json'), get('lake.json').catch(() => null)])
+  const [index, lake] = await Promise.all([get('index.json'), get('lake.json').catch(() => null)])
   if (!index.ok) throw new Error(`floods index ${index.status}`)
-  if (!states.ok) throw new Error(`floods states ${states.status}`)
   const m = await index.json()
+  const states = await get(m.statesFile ?? 'states.json')
+  if (!states.ok) throw new Error(`floods states ${states.status}`)
   return { ...m, states: await states.json(), lake: lake?.ok ? await lake.json() : null }
 }
 

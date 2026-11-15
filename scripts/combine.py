@@ -13,6 +13,7 @@ Without --primary-only, evidence.py is included and duration ranges assume unint
 The primary-only mode omits those duration ranges: observations alone cannot establish continuity.
 """
 import json
+import os
 import sys
 from datetime import datetime
 
@@ -45,7 +46,9 @@ def runs(state, seen_by, dates):
 
 
 def main(primary_only=False):
-    index = json.load(open(f"{FLOODS}/index.json"))
+    pending = f"{FLOODS}/index.pending.json"
+    source = pending if os.path.exists(pending) else f"{FLOODS}/index.json"
+    index = json.load(open(source))
     dates = [f["utc"] for f in index["frames"]]
     states, episodes = {}, 0
     for info in index["municipalities"].values():
@@ -70,8 +73,15 @@ def main(primary_only=False):
         json.dump(m, open(path, "w"), separators=(",", ":"))
     index["method"]["combined"] = ("primary-source open-water state only; duration not inferred" if primary_only else
                                    "flooded if any source flags the pass; none seen only if a source looked and none flagged; runs list their sources")
-    json.dump(index, open(f"{FLOODS}/index.json", "w"), separators=(",", ":"))
-    json.dump(states, open(f"{FLOODS}/states.json", "w"), separators=(",", ":"))
+    states_path = f"{FLOODS}/{index.get('statesFile', 'states.json')}"
+    with open(states_path + ".tmp", "w") as f:
+        json.dump(states, f, separators=(",", ":"))
+    os.replace(states_path + ".tmp", states_path)
+    with open(f"{FLOODS}/index.json.tmp", "w") as f:
+        json.dump(index, f, separators=(",", ":"))
+    os.replace(f"{FLOODS}/index.json.tmp", f"{FLOODS}/index.json")
+    if source == pending:
+        os.remove(pending)
     print(len(states), "barangays,", len(dates), "frames,", episodes, "flooded runs;", sum(s.count("1") for s in states.values()), "flooded barangay-passes")
 
 

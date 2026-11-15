@@ -10,13 +10,12 @@ across all sources are added by evidence.py and combine.py.
 Inputs (written by floods.py, see common.py): CACHE/grid.npz, CACHE/stats.npz, CACHE/cls/<YYYYMMDD>_<track>.npz (key "c").
   stats.npz: high, low, strict, loose (ha) and visible (share) of shape (passes, n_barangays + 1), column 0 = outside any
   barangay; dates, platforms, tracks, thresholds per pass. Passes are re-sorted by time here (both tracks interleaved).
-Output under public/data/floods/: index.json, <munipsgc>/manifest.json (barangay records + frames[]) and one palette PNG per
-municipality crop and pass, <munipsgc>/<YYYYMMDD>_<track>.png, masked to that municipality's barangays. Every frame is
-written, a fully transparent one is only a few hundred bytes. The old single-municipality layout is deleted; lake.json stays.
+Output under public/data/floods/: index.pending.json, versioned municipality manifests and PNG crops.
+The pending index is not published until combine.py has written all states, keeping the existing preview usable.
 Run after floods.py (any number of finished passes), then combine.py --primary-only:
   .venv/bin/python scripts/flood_summary.py
 """
-import glob, json, os, shutil
+import json, os, time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import numpy as np
@@ -87,17 +86,12 @@ def main():
     dry_ref = {utc(d) for d in g["dry_season"]}
     frames = [{"utc": d, "platform": str(s["platforms"][i]).upper(), "track": t, "id": f"{d[:10].replace('-', '')}_{t}", "thresholdDb": round(float(s["thresholds"][i]), 2),
                "daysSincePrevious": (day(d) - day(dates[k - 1])).days if k else None} for k, (i, d, t) in enumerate(zip(order, dates, tracks))]
+    tag = f"{time.time_ns():x}"
     for f in frames:
-        f["file"] = f["id"] + ".png"
+        f["file"] = f"{f['id']}_{tag}.png"
     processed = {f["id"] for f in frames}
     acquired = sorted(a for a in map(str, g["acquired"]) if f"{a.split(':')[0]}:{a.split(':')[2]}" not in processed)
 
-    # Old Bay-only layout and orphans: frames change with the pass set; lake.json is the only file kept at the top.
-    for old in glob.glob(f"{FLOODS}/[0-9]*.png") + [f"{FLOODS}/manifest.json"]:
-        if os.path.isfile(old):
-            os.remove(old)
-    for old in (f"{FLOODS}/coherence", f"{FLOODS}/nisar"):
-        shutil.rmtree(old, ignore_errors=True)
 
     crops = muni_crops(ids, feats)
     area = np.bincount(ids.ravel(), minlength=len(feats) + 1) * pxh
@@ -105,10 +99,6 @@ def main():
     munis = {}
     for m, crop in crops.items():
         os.makedirs(f"{FLOODS}/{m}", exist_ok=True)
-        keep = {f"{fr['id']}.png" for fr in frames}
-        for old in glob.glob(f"{FLOODS}/{m}/[0-9]*.png"):
-            if os.path.basename(old) not in keep:
-                os.remove(old)
         munis[m] = {"crop": crop, "mask": muni_mask(ids, feats, m, crop), "bgy": [i for i, f in enumerate(feats) if f["properties"]["munipsgc"] == m]}
 
     # Frames: one pass raster in memory at a time, cropped per municipality; zlib releases the GIL so a few threads help.
@@ -148,15 +138,15 @@ def main():
         for x in mf:
             del x["id"]
         json.dump({"name": names[m], "psgc": m, "corners": corners, "window": [dates[0][:10], dates[-1][:10]], "tracks": TRACK_TEXT, "frames": mf, "barangays": barangays},
-                  open(f"{FLOODS}/{m}/manifest.json", "w"), separators=(",", ":"))
-        index_munis[m] = {"name": names[m], "corners": corners, "barangays": list(barangays), "manifest": f"{m}/manifest.json"}
+                  open(f"{FLOODS}/{m}/manifest_{tag}.json", "w"), separators=(",", ":"))
+        index_munis[m] = {"name": names[m], "corners": corners, "barangays": list(barangays), "manifest": f"{m}/manifest_{tag}.json"}
 
     index = {"window": [dates[0][:10], dates[-1][:10]], "tracks": TRACK_TEXT, "frames": frames, "dryReference": sorted(dry_ref), "acquiredNotProcessed": acquired,
-             "method": dict(METHOD),
-             "municipalities": index_munis}
+             "coverageNote": "Observations: Bay, Pila, Santa Cruz and Victoria only", "method": dict(METHOD),
+             "statesFile": f"states_{tag}.json", "municipalities": index_munis}
     if tracks_no_ref:
         index["method"]["noDryReference"] = f"tracks {tracks_no_ref} have no dry-season reference pass: their open-water state is unknown"
-    json.dump(index, open(f"{FLOODS}/index.json", "w"), separators=(",", ":"))
+    json.dump(index, open(f"{FLOODS}/index.pending.json", "w"), separators=(",", ":"))
     print(n, "frames,", len(munis), "municipalities;", flooded, "open-water flooded barangay-passes;", len(acquired), "acquired but not processed")
 
 

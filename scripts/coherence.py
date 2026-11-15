@@ -192,9 +192,16 @@ def pair_file(job):
 def load(job, T, shape):
     f = job["files"][0]
     stem = f["filename"].removesuffix(".zip")
-    dst = np.full(shape, np.nan, "float32")
-    with rasterio.open(f"/vsizip//vsicurl/{f['url']}/{stem}/{stem}_corr.tif") as src:
-        reproject(rasterio.band(src, 1), dst, dst_transform=T, dst_crs="EPSG:3857", resampling=Resampling.bilinear, src_nodata=0, dst_nodata=np.nan)
+    for k in range(4):  # remote ranged reads fail now and then; a pair is small, so just retry it
+        try:
+            dst = np.full(shape, np.nan, "float32")
+            with rasterio.open(f"/vsizip//vsicurl/{f['url']}/{stem}/{stem}_corr.tif") as src:
+                reproject(rasterio.band(src, 1), dst, dst_transform=T, dst_crs="EPSG:3857", resampling=Resampling.bilinear, src_nodata=0, dst_nodata=np.nan)
+            break
+        except rasterio.errors.RasterioError:
+            if k == 3:
+                raise
+            import time; time.sleep(5 * (k + 1))
     np.save(f"{COH}/{pair_file(job)}.tmp.npy", dst.astype("float16"))
     os.replace(f"{COH}/{pair_file(job)}.tmp.npy", f"{COH}/{pair_file(job)}")
     return pair_file(job)

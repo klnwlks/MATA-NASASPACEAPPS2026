@@ -26,11 +26,12 @@ export default function Timeline({ floods, frame, onFrame }) {
         <button type="button" disabled={!ready} aria-label="Next observation" onClick={() => onFrame((i) => Math.min(last, i + 1))} className={btn}><SkipForward aria-hidden size={18} /></button>
       </div>
       <input type="range" disabled={!ready} min={0} max={Math.max(last, 0)} value={frame} onChange={(e) => onFrame(Number(e.target.value))} aria-label="Observation date" aria-valuetext={f ? phtTime(f.utc) : 'No observations loaded'} className="min-w-0 flex-1 accent-cobalt" />
-      <div aria-live="polite" className="w-44 shrink-0 leading-tight">
+      <div aria-live="polite" className="w-max shrink-0 leading-tight">
         {f ? (
           <>
             <p className="whitespace-nowrap font-mono text-sm font-medium">{phtTime(f.utc)}</p>
             <p className="text-xs text-muted">{f.platform.replace('SENTINEL-', 'S')} · {f.daysSincePrevious == null ? 'first pass' : `${f.daysSincePrevious} d after previous`} · {frame + 1}/{frames.length}</p>
+            {!!floods?.acquiredNotProcessed?.length && <p className="text-xs text-muted" title="Acquisitions at the catalogue check point that are absent from this replay; coverage elsewhere may differ.">{floods.acquiredNotProcessed.length} acquired passes not processed</p>}
           </>
         ) : (
           <>

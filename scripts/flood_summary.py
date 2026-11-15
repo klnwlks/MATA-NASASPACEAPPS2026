@@ -75,69 +75,90 @@ def passes():
     return g, s, order
 
 
-def main():
-    z = np.load(SRC)
-    utc = lambda d: str(d)[:19] + "Z"  # whole seconds: every browser parses this ISO form
-    classes, dates, T = z["classes"], [utc(d) for d in z["dates"]], Affine(*z["transform"])
-    tracks = [int(t) for t in z["tracks"]]
-    n, h, w = classes.shape
-    unpack = lambda bits: np.unpackbits(bits)[: h * w].reshape(h, w).astype(bool)
-    px_ha = (abs(T.a) * 0.97) ** 2 / 1e4  # mercator pixel to ground hectares at 14.1 N
-    feats = json.load(open("public/data/barangays.geojson"))["features"]
-    ids = rasterize([(transform_geom("EPSG:4326", "EPSG:3857", f["geometry"]), i + 1) for i, f in enumerate(feats)], out_shape=(h, w), transform=T, dtype="int16")
-    in_muni = ids > 0
-    dry_ref = {utc(d) for d in z["dry_season"]}
+def main(force):
+    g, s, order = passes()
+    T, shape = Affine(*g["transform"]), tuple(int(x) for x in g["shape"])
+    feats = features()
+    ids = load_ids(T, shape)
+    dates = [utc(s["dates"][i]) for i in order]
+    tracks = [int(s["tracks"][i]) for i in order]
+    n = len(order)
+    pxh = px_ha(T)
+    dry_ref = {utc(d) for d in g["dry_season"]}
+    frames = [{"utc": d, "platform": str(s["platforms"][i]).upper(), "track": t, "id": f"{d[:10].replace('-', '')}_{t}", "thresholdDb": round(float(s["thresholds"][i]), 2),
+               "daysSincePrevious": (day(d) - day(dates[k - 1])).days if k else None} for k, (i, d, t) in enumerate(zip(order, dates, tracks))]
+    for f in frames:
+        f["file"] = f["id"] + ".png"
+    processed = {f["id"] for f in frames}
+    acquired = sorted(a for a in map(str, g["acquired"]) if f"{a.split(':')[0]}:{a.split(':')[2]}" not in processed)
 
-    os.makedirs(OUT, exist_ok=True)
-    for old in glob.glob(f"{OUT}/[0-9]*.png"):  # frame names change with the track set; never leave orphans
-        os.remove(old)
-    lut = np.zeros((256, 4), "uint8")
-    for k, rgba in PALETTE.items():
-        lut[k] = rgba
-    frames = []
-    for i, d in enumerate(dates):
-        rgba = lut[classes[i]]
-        rgba[~in_muni] = 0  # frames show the municipality only; outside it nothing was assessed for this product
-        name = f"{d[:10].replace('-', '')}_{tracks[i]}.png"
-        Image.fromarray(rgba, "RGBA").save(f"{OUT}/{name}", optimize=True)
-        gap = (day(d) - day(dates[i - 1])).days if i else None
-        frames.append({"utc": d, "platform": str(z["platforms"][i]).upper(), "track": tracks[i], "file": name, "thresholdDb": round(float(z["thresholds"][i]), 2), "daysSincePrevious": gap})
-    loose = [unpack(b) for b in z["loose"]]
-    strict = [unpack(b) for b in z["strict"]]
+    # Old Bay-only layout and orphans: frames change with the pass set; lake.json is the only file kept at the top.
+    for old in glob.glob(f"{FLOODS}/[0-9]*.png") + [f"{FLOODS}/manifest.json"]:
+        if os.path.isfile(old):
+            os.remove(old)
+    for old in (f"{FLOODS}/coherence", f"{FLOODS}/nisar"):
+        shutil.rmtree(old, ignore_errors=True)
 
-    barangays = {}
-    for b, f in enumerate(feats, 1):
-        m = ids == b
-        visible = np.array([(~np.isin(classes[i][m], (NODATA, BLIND))).mean() for i in range(n)])
-        high = np.array([(classes[i][m] == FLOOD).sum() * px_ha for i in range(n)])
-        low = np.array([(classes[i][m] == FLOOD_LOW).sum() * px_ha for i in range(n)])
-        span = [[round(float(strict[i][m].sum() * px_ha), 1), round(float(loose[i][m].sum() * px_ha), 1)] for i in range(n)]
-        # Noise per track: each viewing geometry has its own clutter, so a pass is judged against its own track's dry season.
-        noise = {t: float(np.percentile([high[i] for i, d in enumerate(dates) if d in dry_ref and tracks[i] == t], 95)) for t in set(tracks)}
-        limit = np.array([max(FLOOR_HA, NOISE_FACTOR * noise[t]) for t in tracks])
-        state = np.where(visible < MIN_VISIBLE, -1, (high >= limit).astype(int))  # -1 unknown, 0 none seen, 1 flooded
-        barangays[f["properties"]["psgc"]] = {"name": f["properties"]["name"], "areaHa": round(float(m.sum() * px_ha), 1), "noiseHa": {str(t): round(v, 2) for t, v in noise.items()},
-                                              "floodHa": high.round(1).tolist(), "floodHaRange": span, "lowConfidenceHa": low.round(1).tolist(), "visibleShare": visible.round(2).tolist(),
-                                              "openWaterState": state.tolist()}
+    crops = muni_crops(ids, feats)
+    area = np.bincount(ids.ravel(), minlength=len(feats) + 1) * pxh
+    names = {f["properties"]["munipsgc"]: f["properties"]["muni"] for f in feats}
+    munis = {}
+    for m, crop in crops.items():
+        os.makedirs(f"{FLOODS}/{m}", exist_ok=True)
+        keep = {f"{fr['id']}.png" for fr in frames}
+        for old in glob.glob(f"{FLOODS}/{m}/[0-9]*.png"):
+            if os.path.basename(old) not in keep:
+                os.remove(old)
+        munis[m] = {"crop": crop, "mask": muni_mask(ids, feats, m, crop), "bgy": [i for i, f in enumerate(feats) if f["properties"]["munipsgc"] == m]}
 
-    to_ll = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
-    corners = [list(to_ll.transform(*(T * (c, r)))) for c, r in ((0, 0), (w, 0), (w, h), (0, h))]
-    processed = {f"{d[:10].replace('-', '')}:{t}" for d, t in zip(dates, tracks)}
-    manifest = {
-        "tracks": {"32": "Sentinel-1 descending relative orbit 32, about 05:47 Philippine time", "142": "Sentinel-1 ascending relative orbit 142, about 18:05 Philippine time"},
-        "window": [dates[0][:10], dates[-1][:10]], "corners": corners, "frames": frames,
-        "acquiredNotProcessed": sorted(a for a in map(str, z["acquired"]) if f"{a.split(':')[0]}:{a.split(':')[2]}" not in processed),
-        "dryReference": sorted(dry_ref),
-        "method": {"reference": "per-pixel, per-calendar-month median and 1.4826 x MAD of VV on the same track, 2020-11-15 to 2024-11-14 (history.py)", "water": "VV below per-pass Otsu threshold",
-                   "flood": "water, not permanent water, z <= -2 against the seasonal reference, slope under 5 degrees (60 m smoothed GLO-30)",
-                   "floodHaRange": "high-confidence flood hectares with the water threshold -1/+1 dB and z <= -2.5/-1.5 (strict, loose)",
-                   "lowConfidence": "flood pixels in ESA WorldCover 2021 cropland or wetland that are not connected to Laguna de Bay", "radarBlind": "WorldCover built-up or tree cover without detected open water: unknown",
-                   "barangayFlooded": f"flood area >= {FLOOR_HA} ha and >= {NOISE_FACTOR}x the dry-season noise of the same track", "minVisibleShare": MIN_VISIBLE},
-        "barangays": barangays,
-    }
-    json.dump(manifest, open(f"{OUT}/manifest.json", "w"), separators=(",", ":"))
-    print(len(frames), "frames;", sum(sum(s == 1 for s in b["openWaterState"]) for b in barangays.values()), "open-water flooded barangay-passes;", len(manifest["acquiredNotProcessed"]), "acquired but not processed")
+    # Frames: one pass raster in memory at a time, cropped per municipality; zlib releases the GIL so a few threads help.
+    pool = ThreadPoolExecutor(3)
+    for k, (i, f) in enumerate(zip(order, frames)):
+        todo = [m for m in munis if force or not os.path.exists(f"{FLOODS}/{m}/{f['file']}")]
+        if not todo:
+            continue
+        c = np.load(f"{CACHE}/cls/{f['id']}.npz")["c"]
+        jobs = []
+        for m in todo:
+            r0, r1, c0, c1 = munis[m]["crop"]
+            jobs.append(pool.submit(write_png, f"{FLOODS}/{m}/{f['file']}", np.where(munis[m]["mask"], c[r0:r1, c0:c1], DRY).astype("uint8")))
+        for j in jobs:
+            j.result()
+        if (k + 1) % 20 == 0 or k + 1 == n:
+            print(f"frame {k + 1}/{n} {f['id']}", flush=True)
+
+    high, low, vis, strict, loose = (s[x][order] for x in ("high", "low", "visible", "strict", "loose"))
+    dry = np.array([d in dry_ref for d in dates])
+    tr = np.array(tracks)
+    noise = {t: np.percentile(high[dry & (tr == t)], 95, axis=0) for t in sorted(set(tracks)) if (dry & (tr == t)).any()}  # per barangay
+    tracks_no_ref = sorted(set(tracks) - set(noise))
+    index_munis, flooded = {}, 0
+    for m, info in munis.items():
+        barangays = {}
+        for b in info["bgy"]:
+            lim = np.array([max(FLOOR_HA, NOISE_FACTOR * noise[t][b + 1]) if t in noise else np.nan for t in tracks])
+            state = np.where(np.isnan(lim) | (vis[:, b + 1] < MIN_VISIBLE), -1, (high[:, b + 1] >= lim).astype(int))  # -1 unknown, 0 none seen, 1 flooded
+            flooded += int((state == 1).sum())
+            p = feats[b]["properties"]
+            barangays[p["psgc"]] = {"name": p["name"], "areaHa": round(float(area[b + 1]), 1), "noiseHa": {str(t): round(float(v[b + 1]), 2) for t, v in noise.items()},
+                                    "floodHa": high[:, b + 1].round(1).tolist(), "floodHaRange": [[round(float(a), 1), round(float(c), 1)] for a, c in zip(strict[:, b + 1], loose[:, b + 1])],
+                                    "lowConfidenceHa": low[:, b + 1].round(1).tolist(), "visibleShare": vis[:, b + 1].round(2).tolist(), "openWaterState": state.tolist()}
+        corners = crop_corners(T, info["crop"])
+        mf = [{**f, "file": f"{m}/{f['file']}"} for f in frames]
+        for x in mf:
+            del x["id"]
+        json.dump({"name": names[m], "psgc": m, "corners": corners, "window": [dates[0][:10], dates[-1][:10]], "tracks": TRACK_TEXT, "frames": mf, "barangays": barangays},
+                  open(f"{FLOODS}/{m}/manifest.json", "w"), separators=(",", ":"))
+        index_munis[m] = {"name": names[m], "corners": corners, "barangays": list(barangays), "manifest": f"{m}/manifest.json"}
+
+    index = {"window": [dates[0][:10], dates[-1][:10]], "tracks": TRACK_TEXT, "frames": frames, "dryReference": sorted(dry_ref), "acquiredNotProcessed": acquired,
+             "method": dict(METHOD),
+             "municipalities": index_munis}
+    if tracks_no_ref:
+        index["method"]["noDryReference"] = f"tracks {tracks_no_ref} have no dry-season reference pass: their open-water state is unknown"
+    json.dump(index, open(f"{FLOODS}/index.json", "w"), separators=(",", ":"))
+    print(n, "frames,", len(munis), "municipalities;", flooded, "open-water flooded barangay-passes;", len(acquired), "acquired but not processed")
 
 
 if __name__ == "__main__":
-    main()
+    main("--force" in sys.argv)

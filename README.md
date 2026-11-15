@@ -19,7 +19,11 @@ Built by Team Masasarap for the 2026 NASA Space Apps Challenge, [Dancing with th
 
 ## How it works
 
-Python processing scripts compare Sentinel-1 radar observations with dry-season and seasonal historical references, apply terrain and land-cover masks, and prepare map overlays and barangay summaries. OPERA water classifications, coherence loss and NISAR radar darkening provide additional evidence with their own coverage and limitations. The browser loads the resulting static assets; it does not run the satellite processing pipeline.
+Flooding is not just a question of **where** water appeared, but **how it changed over time**. MATA: Tanaw brings satellite observations together on a map and timeline, letting users step through radar passes to explore where flooding may have spread, persisted or receded across barangays.
+
+Each source adds a different piece of the picture. Sentinel-1 sees through clouds and reveals changes in open water. NASA's OPERA water maps provide another reading of Sentinel-1; ASF HyP3 coherence highlights changes in built-up areas; and NASA–ISRO NISAR adds a different radar perspective where available. Comparing these signals with earlier observations helps reveal patterns that a single layer could miss.
+
+The timeline shows observed passes, not a continuous record. Buildings, vegetation and agricultural water can obscure or mimic flooding, and gaps between observations remain unknown.
 
 ## Tech stack
 

@@ -1,17 +1,20 @@
-"""Extract Bay, Laguna barangays from OCHA COD-AB (PSA/NAMRIA) into public/data/barangays.geojson.
+"""Extract the barangays of Laguna province from OCHA COD-AB (PSA/NAMRIA) into public/data/barangays.geojson.
 
-Reads the remote GDB by HTTP range requests; nothing large is downloaded.
+Reads the GDB zip from /tmp/phl_admin.gdb.zip when present (about 360 MB, fetch it once from HDX), else by HTTP range
+requests, which is fast for one municipality and slow for a province.
 Run: .venv/bin/python scripts/boundaries.py
 """
-import json
+import json, os
 import pyogrio
 from shapely import wkb
 from shapely.geometry import mapping
 from shapely.validation import explain_validity
 
-SRC = "/vsizip//vsicurl/" + "ht" + "tps://data.humdata.org/dataset/caf116df-f984-4deb-85ca-41b349d3f313/resource/3fa0dbcf-e07d-4506-9821-ba15baa6da07/download/phl_admin_boundaries.gdb.zip"
-MUNI = "0403402000"  # Bay, Laguna
-BBOX = (121.2, 14.05, 121.36, 14.22)  # coarse read window around Bay; features are then filtered by PSGC prefix
+LOCAL = "/tmp/phl_admin.gdb.zip"
+REMOTE = "/vsizip//vsicurl/" + "ht" + "tps://data.humdata.org/dataset/caf116df-f984-4deb-85ca-41b349d3f313/resource/3fa0dbcf-e07d-4506-9821-ba15baa6da07/download/phl_admin_boundaries.gdb.zip"
+SRC = f"/vsizip/{LOCAL}" if os.path.exists(LOCAL) else REMOTE
+PROVINCE = "04034"  # Laguna: PSGC province prefix (municipality 0403402000 is Bay)
+BBOX = (120.9, 13.8, 121.8, 14.7)  # coarse read window around Laguna; features are then filtered by PSGC prefix
 SIMPLIFY_DEG = 0.00001  # ~1 m; drops redundant vertices only
 
 meta, _, geoms, cols = pyogrio.raw.read(SRC, layer="phl_admin4", bbox=BBOX, return_fids=True)
@@ -20,7 +23,7 @@ rows = [dict(zip(names, vals)) for vals in zip(*cols)]
 feats = []
 for row, g in zip(rows, geoms):
     psgc = str(row["adm4_pcode"]).removeprefix("PH").zfill(10)
-    if not psgc.startswith(MUNI[:7]):
+    if not psgc.startswith(PROVINCE):
         continue
     geom = wkb.loads(bytes(g))
     if not geom.is_valid:
@@ -30,12 +33,14 @@ for row, g in zip(rows, geoms):
     feats.append({
         "type": "Feature",
         "id": psgc,
-        "properties": {"psgc": psgc, "name": row["adm4_name"], "muni": row["adm3_name"], "valid_on": str(row["valid_on"]), "version": str(row["version"])},
+        "properties": {"psgc": psgc, "name": row["adm4_name"], "muni": row["adm3_name"], "munipsgc": psgc[:7] + "000", "valid_on": str(row["valid_on"]), "version": str(row["version"])},
         "geometry": mapping(geom),
     })
 feats.sort(key=lambda f: f["id"])
+munis = {}
 for f in feats:
-    n = sum(len(r) for p in ([f["geometry"]["coordinates"]] if f["geometry"]["type"] == "Polygon" else f["geometry"]["coordinates"]) for r in p)
-    print(f["id"], f["properties"]["name"], f["geometry"]["type"], n, f["properties"]["valid_on"], f["properties"]["version"])
+    munis.setdefault(f["properties"]["munipsgc"], [f["properties"]["muni"], 0])[1] += 1
+for k, (name, n) in sorted(munis.items()):
+    print(k, name, n)
 json.dump({"type": "FeatureCollection", "features": feats}, open("public/data/barangays.geojson", "w"), separators=(",", ":"))
-print(len(feats), "features")
+print(len(feats), "barangays in", len(munis), "municipalities")

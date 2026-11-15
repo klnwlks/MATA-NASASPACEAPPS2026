@@ -1,7 +1,7 @@
 import { CloudLightning, Play, X } from 'lucide-react'
 import { shortDate } from '../data.js'
 
-// Observed flood runs across the municipality: a run starts on any pass where at least one barangay is flooded.
+// Observed flood runs across the municipality: a run starts on any pass where at least one barangay is flooded by any source.
 function runs(floods) {
   const recs = Object.values(floods.barangays)
   const out = []

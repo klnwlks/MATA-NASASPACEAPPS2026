@@ -19,7 +19,7 @@ export default function App() {
   const [map, setMap] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [municipality, setMunicipality] = useState(null)
-  const [show, setShow] = useState({ boundaries: true, buildings: true })
+  const [show, setShow] = useState({ boundaries: true, buildings: true, coherence: true, nisar: true })
   const [fit, setFit] = useState(null)
   const [homeTick, setHomeTick] = useState(0)
   const [minutes, setMinutes] = useState(15 * 60 + 30) // Manila clock; mid-afternoon reads best by default

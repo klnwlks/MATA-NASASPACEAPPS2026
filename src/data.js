@@ -34,7 +34,8 @@ export async function loadFloods() {
   if (!res.ok) throw new Error(`floods ${res.status}`)
   const m = await res.json()
   const lake = lakeRes?.ok ? await lakeRes.json() : null
-  return { ...m, lake, frames: m.frames.map((f) => ({ ...f, url: `${base}${f.file}` })) }
+  const url = (file) => file && `${base}${file}`
+  return { ...m, lake, frames: m.frames.map((f) => ({ ...f, url: url(f.file), coherenceUrl: url(f.coherenceFile), nisarUrl: url(f.nisarFile) })) }
 }
 
 const PHT = new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })

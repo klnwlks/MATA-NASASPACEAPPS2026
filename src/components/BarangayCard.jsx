@@ -13,9 +13,11 @@ function Row({ icon: Icon, tone, label, children, mono }) {
 }
 
 const STATE = { 1: ['Flooded', 'bg-cobalt text-white'], 0: ['No flood seen', 'bg-page text-ink'], [-1]: ['Unknown', 'bg-page text-muted'] }
+const SOURCE = { openWater: 'Sentinel-1 open water', opera: 'OPERA', coherence: 'InSAR coherence', nisar: 'NISAR' }
+const sources = (keys) => keys.map((k) => SOURCE[k] ?? k).join(', ')
 const range = (e) => (e.maxDays == null ? `at least ${e.minDays} d, upper bound unknown` : `between ${e.minDays} and ${e.maxDays} days`)
 
-// Observed state on the current frame, and every flooded run as a duration range bounded by real passes.
+// Combined state on the current pass (any source), and every flooded run as a duration range bounded by real passes.
 function Observations({ rec, frame, frames, onFrame }) {
   const [label, tone] = STATE[rec.state[frame]]
   const seen = Math.round(rec.visibleShare[frame] * 100)
@@ -26,8 +28,9 @@ function Observations({ rec, frame, frames, onFrame }) {
         <h3 className="text-sm font-medium text-cobalt-ink">This pass</h3>
         <span className={`ml-auto rounded-lg px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
       </div>
-      <p className="mt-1 font-mono text-sm">{rec.floodHa[frame]} ha flood · {rec.lowConfidenceHa[frame]} ha low-confidence</p>
-      <p className="text-xs text-muted">Radar sees {seen} % of this barangay. Buildings and tree cover hide floodwater from it and are left unknown, never dry. Low confidence: water on cropland or wetland away from the lake, often paddies.</p>
+      {rec.seenBy[frame].length > 0 && <p className="mt-1 text-xs text-cobalt-ink">Seen by {sources(rec.seenBy[frame])}</p>}
+      <p className="mt-1 font-mono text-sm">Open water: {rec.floodHa[frame]} ha · {rec.lowConfidenceHa[frame]} ha low-confidence</p>
+      <p className="text-xs text-muted">Radar sees {seen} % of this barangay as open ground. Buildings and tree cover hide floodwater from it and are left unknown, never dry. Low confidence: water on cropland or wetland away from the lake, often paddies.</p>
       <SecondOpinions evidence={rec.evidence} frame={frame} />
       <h3 className="mt-3 text-sm font-medium text-cobalt-ink">Flooded runs, {frames.length} passes</h3>
       {rec.episodes.length ? (
@@ -36,13 +39,13 @@ function Observations({ rec, frame, frames, onFrame }) {
             <li key={e.first}>
               <button type="button" onClick={() => onFrame(frames.findIndex((f) => f.utc === e.first))} className="w-full py-1.5 text-left text-sm hover:text-cobalt">
                 <span className="font-medium">{shortDate(e.first)}{e.last !== e.first && ` – ${shortDate(e.last)}`}</span>
-                <span className="block text-xs text-muted">{range(e)} · {e.observations} pass{e.observations > 1 ? 'es' : ''}{e.unknownInside ? ' · unassessed pass inside' : ''}</span>
+                <span className="block text-xs text-muted">{range(e)} · {e.observations} pass{e.observations > 1 ? 'es' : ''}{e.unknownInside ? ' · unassessed pass inside' : ''} · seen by {sources(e.seenBy)}</span>
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-muted">No flooded pass detected. Urban and vegetated flooding can hide from radar.</p>
+        <p className="text-sm text-muted">No source flagged this barangay on any pass.</p>
       )}
     </section>
   )

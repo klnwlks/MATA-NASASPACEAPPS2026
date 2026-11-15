@@ -125,6 +125,28 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
     else map.once('load', apply)
   }, [floods, frame])
 
+  // Low-confidence evidence overlays, draped on the terrain: built-up coherence loss (amber stripes) and NISAR
+  // HV darkening (cyan dots). Hidden on passes without that source, and whenever toggled off.
+  useEffect(() => {
+    const map = mapRef.current
+    const f = floods?.frames[frame]
+    if (!map || !f) return
+    const apply = () => {
+      for (const [key, url] of [['coherence', f.coherenceUrl], ['nisar', f.nisarUrl]]) {
+        const id = `ev-${key}`
+        const src = map.getSource(id)
+        if (url && src) src.updateImage({ url, coordinates: floods.corners })
+        else if (url) {
+          map.addSource(id, { type: 'image', url, coordinates: floods.corners })
+          map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } }, 'night')
+        }
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', url && show[key] ? 'visible' : 'none')
+      }
+    }
+    if (map.loaded()) apply()
+    else map.once('load', apply)
+  }, [floods, frame, show])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map?.isStyleLoaded()) return

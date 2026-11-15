@@ -1,11 +1,12 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Map, Marker, addProtocol, removeProtocol } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { buildStyle, HOME_VIEW, SHADOW_BUCKETS } from './style.js'
-import { addBoundaryLayers, setSelection } from './boundaries.js'
+import { buildStyle, HOME_VIEW, PROVINCE_VIEW, SHADOW_BUCKETS } from './style.js'
+import { addBoundaryLayers, setFrame, setSelection, setStates, BOUNDARY_LAYERS, PIN_ZOOM } from './boundaries.js'
 import { addTreeLayer } from './trees.js'
 import { addWaterLayer, floodStage } from './water.js'
+import { createSlot } from './slot.js'
 import { applySun } from './sun.js'
 
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -14,14 +15,26 @@ const padding = () =>
     ? { top: 96, bottom: 120, left: 56, right: 400 }
     : { top: 88, bottom: 150, left: 16, right: 16 }
 const dur = (ms) => (reduceMotion() ? 0 : ms)
+// The heavy layers belong to the focused municipality and only appear once it fills a useful part of the screen.
+// Each switches on at its zoom and off half a zoom level lower, so a hovering zoom does not reload it.
+const WATER_ZOOM = 11
+const TREES_ZOOM = 13
+const gate = (on, zoom, at) => (on ? zoom >= at - 0.5 : zoom >= at)
 
-export default function MapStage({ barangays, floods, frame, selectedId, show, fit, homeTick, time, onSelect, onMunicipality, onStatus, onMap }) {
+export default function MapStage({ barangays, floods, manifest, focus, frame, selectedId, show, fit, homeTick, time, onSelect, onMunicipality, onProvince, onCenter, onStatus, onMap }) {
   const el = useRef(null)
   const mapRef = useRef(null)
   const live = useRef({})
+  const slots = useRef(null)
+  const loaded = useRef(false)
+  const queue = useRef([])
+  const pins = useRef([])
+  const [zoomed, setZoomed] = useState({ water: false, trees: false })
   useEffect(() => {
-    live.current = { onSelect, onMunicipality, onStatus, barangays, time }
+    live.current = { onSelect, onMunicipality, onProvince, onCenter, onStatus, barangays, time, frame, focus }
   })
+  // Style-dependent work waits for the first 'load'; map.loaded() is false whenever tiles are in flight, so it cannot gate this.
+  const whenLoaded = (fn) => (loaded.current ? fn() : queue.current.push(fn))
 
   useEffect(() => {
     const protocol = new Protocol()
@@ -34,9 +47,10 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
       map = new Map({
         container: el.current,
         style: buildStyle(window.location.origin),
-        center: [121.25, 14.14],
-        zoom: 11,
-        ...HOME_VIEW,
+        center: [122.5, 12.7],
+        zoom: 5,
+        bearing: 0,
+        pitch: 0,
         maxPitch: 70, // HOME_VIEW sits at 62; steeper views pull in many far tiles for a strip of horizon
         attributionControl: false,
         pixelRatio,
@@ -48,6 +62,11 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
       return
     }
     mapRef.current = map
+    const origin = window.location.origin + import.meta.env.BASE_URL
+    slots.current = {
+      water: createSlot(() => addWaterLayer(map, live.current.focus.corners, origin)),
+      trees: createSlot((psgc) => addTreeLayer(map, `${origin}data/trees/${psgc}.geojson`, 'buildings')),
+    }
     const failed = new Set()
     const fail = (key) => {
       failed.add(key)
@@ -74,12 +93,39 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
       }
     })
     map.on('load', () => {
+      loaded.current = true
       onMap(map)
+      map.addSource('provinces', { type: 'geojson', data: `${origin}data/provinces.geojson`, promoteId: 'code' })
+      map.addLayer({ id: 'province-fill', type: 'fill', source: 'provinces', maxzoom: 9, paint: { 'fill-color': '#DCE7A6', 'fill-opacity': 0.8 } })
+      map.addLayer({ id: 'province-line', type: 'line', source: 'provinces', maxzoom: 9, paint: { 'line-color': '#56607A', 'line-width': 0.8 } })
+      map.addLayer({ id: 'province-label', type: 'symbol', source: 'provinces', minzoom: 5.5, maxzoom: 9, layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 11 }, paint: { 'text-color': '#0F1B33', 'text-halo-color': '#FBFAF6', 'text-halo-width': 1 } })
+      map.on('click', 'province-fill', (e) => {
+        const feature = e.features?.[0]
+        if (feature) live.current.onProvince({ code: feature.properties.code, name: feature.properties.name, region: feature.properties.region })
+      })
       applySun(map, live.current.time)
-      addTreeLayer(map, `${window.location.origin}${import.meta.env.BASE_URL}data/trees.geojson`, 'buildings').catch((e) => console.error(e))
+      for (const fn of queue.current.splice(0)) fn()
     })
+    // After each move: gate the heavy layers by zoom, hide the pins once barangays take over, and tell the app which
+    // municipality is under the middle of the screen so it can load that one.
+    const settle = () => {
+      const z = map.getZoom()
+      setZoomed((s) => {
+        const next = { water: gate(s.water, z, WATER_ZOOM), trees: gate(s.trees, z, TREES_ZOOM) }
+        return next.water === s.water && next.trees === s.trees ? s : next
+      })
+      for (const pin of pins.current) pin.style.display = z < 8 || z >= PIN_ZOOM ? 'none' : ''
+      if (z < WATER_ZOOM || !map.getLayer('bgy-fill')) return
+      const c = map.project(map.getCenter())
+      const hit = map.queryRenderedFeatures(c, { layers: ['bgy-fill'] })[0]
+      if (hit) live.current.onCenter(hit.properties.munipsgc)
+    }
+    map.on('moveend', settle)
     return () => {
-      water.current = null
+      loaded.current = false
+      queue.current = []
+      slots.current = null
+      pins.current = []
       onMap(null)
       mapRef.current = null
       map.remove()
@@ -91,13 +137,14 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
   useEffect(() => {
     const map = mapRef.current
     if (!map || !barangays) return
-    const add = () => {
-      addBoundaryLayers(map, barangays.geojson, (id) => live.current.onSelect(id))
-      map.fitBounds(barangays.bounds, { ...HOME_VIEW, padding: padding(), duration: 0 })
-      for (const m of barangays.municipalities) {
+    whenLoaded(() => {
+      addBoundaryLayers(map, barangays, (id) => live.current.onSelect(id))
+      map.fitBounds([[114.2, 4.3], [126.8, 21.6]], { bearing: 0, pitch: 0, padding: padding(), duration: 0 })
+      pins.current = barangays.municipalities.map((m) => {
         const pin = document.createElement('button')
         pin.type = 'button'
-        pin.setAttribute('aria-label', `${m.name} observed flood runs`)
+        pin.style.display = map.getZoom() < 8 || map.getZoom() >= PIN_ZOOM ? 'none' : ''
+        pin.setAttribute('aria-label', `${m.name}, municipality: observed flood runs`)
         pin.className = 'grid size-9 place-items-center rounded-full border-2 border-white bg-cobalt text-white shadow-float hover:bg-cobalt-ink'
         pin.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>'
         // Keep the map from turning pin presses into a barangay click underneath.
@@ -107,40 +154,59 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
           live.current.onMunicipality(m)
         })
         new Marker({ element: pin }).setLngLat(m.center).addTo(map)
-      }
-    }
-    if (map.loaded()) add()
-    else map.once('load', add)
+        return pin
+      })
+    })
   }, [barangays])
+
+  // Observed state per barangay per frame: the polygons carry the state strings, a frame change only repaints.
+  const states = floods?.states
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !barangays || !states) return
+    whenLoaded(() => {
+      setStates(map, barangays.geojson, states)
+      setFrame(map, live.current.frame)
+    })
+  }, [barangays, states])
+  useEffect(() => {
+    const map = mapRef.current
+    if (map) whenLoaded(() => setFrame(map, frame))
+  }, [frame])
 
   useEffect(() => setSelection(mapRef.current, selectedId), [selectedId])
 
-  // One water layer for the whole run: each observed date swaps its mask and surface height, and the evidence
-  // overlays (coherence loss, NISAR) ride on it with the same smoothed edges.
-  const water = useRef(null)
+  // The water surface (and the coherence and NISAR overlays that ride on it) is one mesh for the focused municipality.
+  // It exists only from WATER_ZOOM and only once that municipality's manifest has loaded; the slot unloads it on focus change.
+  const waterKey = focus && manifest && zoomed.water ? focus.psgc : null
   useEffect(() => {
     const map = mapRef.current
-    const f = floods?.frames[frame]
-    if (!map || !f) return
-    const apply = () => {
-      water.current ??= addWaterLayer(map, floods.corners, `${window.location.origin}${import.meta.env.BASE_URL}`).catch((e) => console.error(e))
-      water.current.then((w) => {
-        w?.set(f.url, floodStage(floods.lake, f.utc))
-        w?.overlay('coherence', f.coherenceUrl, show.coherence)
-        w?.overlay('nisar', f.nisarUrl, show.nisar)
+    if (!map || !slots.current) return
+    const slot = slots.current.water
+    whenLoaded(() => {
+      slot.set(waterKey).then((w) => {
+        const f = manifest?.frames[frame]
+        if (!w || slot.key !== waterKey) return
+        w.set(f?.url, floodStage(floods.lake, floods.frames[frame].utc))
+        w.overlay('coherence', f?.coherenceUrl, show.coherence)
+        w.overlay('nisar', f?.nisarUrl, show.nisar)
       })
-    }
-    if (map.loaded()) apply()
-    else map.once('load', apply)
-  }, [floods, frame, show])
+    })
+  }, [waterKey, manifest, floods, frame, show])
+
+  const treesKey = focus && zoomed.trees ? focus.psgc : null
+  useEffect(() => {
+    if (slots.current) whenLoaded(() => slots.current?.trees.set(treesKey))
+  }, [treesKey])
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map?.isStyleLoaded()) return
-    const vis = (id, on) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
-    for (const id of ['buildings', 'roofs', 'building-ao', ...SHADOW_BUCKETS.map(([id]) => id)]) vis(id, show.buildings)
-    vis('bgy-line', show.boundaries)
-    vis('bgy-label', show.boundaries)
+    if (!map) return
+    whenLoaded(() => {
+      const vis = (id, on) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
+      for (const id of ['buildings', 'roofs', 'building-ao', ...SHADOW_BUCKETS.map(([id]) => id)]) vis(id, show.buildings)
+      for (const id of BOUNDARY_LAYERS) vis(id, show.boundaries)
+    })
   }, [show, barangays])
 
   useEffect(() => {
@@ -151,18 +217,18 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
   useEffect(() => {
     const map = mapRef.current
     if (!map || !fit) return
-    map.fitBounds(fit.bounds, { padding: padding(), maxZoom: 15, bearing: map.getBearing(), pitch: map.getPitch(), duration: dur(900) })
+    map.fitBounds(fit.bounds, { padding: padding(), maxZoom: 15, bearing: map.getBearing(), pitch: Math.max(map.getPitch(), HOME_VIEW.pitch), duration: dur(900) })
   }, [fit])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !homeTick || !live.current.barangays) return
-    map.fitBounds(live.current.barangays.bounds, { ...HOME_VIEW, padding: padding(), duration: dur(1200) })
+    map.fitBounds([[114.2, 4.3], [126.8, 21.6]], { bearing: 0, pitch: 0, padding: padding(), duration: dur(1200) })
   }, [homeTick])
 
   return (
     <div className="absolute inset-0">
-      <div ref={el} className="h-full w-full" role="region" aria-label="Map of Bay, Laguna" />
+      <div ref={el} className="h-full w-full" role="region" aria-label="Map of the Philippines" />
     </div>
   )
 }

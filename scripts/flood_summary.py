@@ -1,7 +1,7 @@
 """Turn the class rasters and per-barangay stats from floods.py into replay frames and per-barangay flood records, per municipality.
 
 Open water: a barangay counts as flooded on a date when its high-confidence flood area is at least FLOOR_HA and at least
-NOISE_FACTOR times its own noise level (95th percentile of flood area on dry-season reference dates of the same track, where no
+three times its own noise level (95th percentile of flood area on dry-season reference dates of the same track, where no
 flood is expected). Low-confidence water (cropland, wetland) is reported but never counts. A pass where fewer than
 MIN_VISIBLE of the barangay was visible to the radar is unknown (-1). A track with no dry-season reference pass has no noise
 level: its passes are unknown for open water (never judged against a made-up level). Combined state and duration runs
@@ -27,7 +27,7 @@ from rasterio.warp import transform_geom
 
 from common import CACHE, FLOODS, NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW, BLIND, crop_corners, features, muni_crops, muni_mask, px_ha
 
-FLOOR_HA, NOISE_FACTOR, MIN_VISIBLE = 1.0, 2.0, 0.15  # loosened from 2.0, 3.0, 0.25 to flag more readily; more false positives expected
+FLOOR_HA, NOISE_FACTOR, MIN_VISIBLE = 2.0, 3.0, 0.25
 # RGBA per class: unknown (no data, steep, radar-blind) is a pale grey veil, never drawn as dry; flood is cyan, apart from
 # the cobalt selection; low confidence uses the same alpha channel at 170 and the viewer draws it fainter and paler.
 UNKNOWN = (120, 120, 120, 70)

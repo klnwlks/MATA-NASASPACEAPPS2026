@@ -8,9 +8,12 @@ Durations come only from observed passes: for a run of flooded passes,
 Sources differ in confidence; every run lists the sources that saw it.
 Adds state, seenBy and episodes to every barangay record of every <munipsgc>/manifest.json, and writes
 public/data/floods/states.json: {<psgc>: "<one char per frame>"}, 1 flooded, 0 none seen, - unknown, in index.json frame order.
-Run after evidence.py: .venv/bin/python scripts/combine.py
+Run after flood_summary.py: .venv/bin/python scripts/combine.py --primary-only
+Without --primary-only, evidence.py is included and duration ranges assume uninterrupted flooding between passes.
+The primary-only mode omits those duration ranges: observations alone cannot establish continuity.
 """
 import json
+import sys
 from datetime import datetime
 
 from common import FLOODS
@@ -41,7 +44,7 @@ def runs(state, seen_by, dates):
     return out
 
 
-def main():
+def main(primary_only=False):
     index = json.load(open(f"{FLOODS}/index.json"))
     dates = [f["utc"] for f in index["frames"]]
     states, episodes = {}, 0
@@ -49,22 +52,28 @@ def main():
         path = f"{FLOODS}/{info['manifest']}"
         m = json.load(open(path))
         for psgc, rec in m["barangays"].items():
-            votes = {"openWater": [None if s == -1 else s for s in rec["openWaterState"]], **{k: v["flagged"] for k, v in rec.get("evidence", {}).items()}}
+            votes = {"openWater": [None if s == -1 else s for s in rec["openWaterState"]]}
+            if not primary_only:
+                votes.update({k: v["flagged"] for k, v in rec.get("evidence", {}).items()})
             state, seen_by = [], []
             for i in range(len(dates)):
                 hit = [k for k, v in votes.items() if v[i] == 1]
                 looked = any(v[i] is not None for v in votes.values())
                 state.append(1 if hit else 0 if looked else -1)
                 seen_by.append(hit)
-            rec["state"], rec["seenBy"], rec["episodes"] = state, seen_by, runs(state, seen_by, dates)
+            rec["state"], rec["seenBy"] = state, seen_by
+            rec["episodes"] = None if primary_only else runs(state, seen_by, dates)
+            if primary_only:
+                rec["evidence"] = {}
             states[psgc] = "".join(CHAR[s] for s in state)
-            episodes += len(rec["episodes"])
+            episodes += len(rec["episodes"] or [])
         json.dump(m, open(path, "w"), separators=(",", ":"))
-    index["method"]["combined"] = "flooded if any source flags the pass; none seen only if a source looked and none flagged; runs list their sources"
+    index["method"]["combined"] = ("primary-source open-water state only; duration not inferred" if primary_only else
+                                   "flooded if any source flags the pass; none seen only if a source looked and none flagged; runs list their sources")
     json.dump(index, open(f"{FLOODS}/index.json", "w"), separators=(",", ":"))
     json.dump(states, open(f"{FLOODS}/states.json", "w"), separators=(",", ":"))
     print(len(states), "barangays,", len(dates), "frames,", episodes, "flooded runs;", sum(s.count("1") for s in states.values()), "flooded barangay-passes")
 
 
 if __name__ == "__main__":
-    main()
+    main("--primary-only" in sys.argv)

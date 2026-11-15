@@ -41,7 +41,7 @@ function TimeOfDay({ minutes, onMinutes, followingPass, onFollowPass }) {
   )
 }
 
-export default function MapControls({ map, show, onShow, onHome, minutes, onMinutes, followingPass, onFollowPass }) {
+export default function MapControls({ map, show, onShow, onHome, minutes, onMinutes, followingPass, onFollowPass, hasCoherence, hasNisar }) {
   const [view, setView] = useState({ bearing: 0, pitch: 0 })
   useEffect(() => {
     if (!map) return
@@ -61,8 +61,8 @@ export default function MapControls({ map, show, onShow, onHome, minutes, onMinu
       <span className="my-1 h-px w-6 bg-line" aria-hidden />
       <Toggle on={show.boundaries} onChange={(v) => onShow({ ...show, boundaries: v })} label="Boundaries" tone="bg-cobalt-tint text-cobalt"><Shapes aria-hidden size={20} /></Toggle>
       <Toggle on={show.buildings} onChange={(v) => onShow({ ...show, buildings: v })} label="Buildings" tone="bg-amber-tint text-amber-ink"><Building2 aria-hidden size={20} /></Toggle>
-      <Toggle on={show.coherence} onChange={(v) => onShow({ ...show, coherence: v })} label="Built-up coherence loss (amber stripes, low confidence)" tone="bg-amber-tint text-amber-ink"><Rows3 aria-hidden size={20} /></Toggle>
-      <Toggle on={show.nisar} onChange={(v) => onShow({ ...show, nisar: v })} label="NISAR L-band darkening (cyan dots, 2026 only)" tone="bg-cobalt-tint text-cobalt"><Grid3x3 aria-hidden size={20} /></Toggle>
+      {hasCoherence && <Toggle on={show.coherence} onChange={(v) => onShow({ ...show, coherence: v })} label="Built-up coherence loss" tone="bg-amber-tint text-amber-ink"><Rows3 aria-hidden size={20} /></Toggle>}
+      {hasNisar && <Toggle on={show.nisar} onChange={(v) => onShow({ ...show, nisar: v })} label="NISAR L-band darkening" tone="bg-cobalt-tint text-cobalt"><Grid3x3 aria-hidden size={20} /></Toggle>}
       <TimeOfDay minutes={minutes} onMinutes={onMinutes} followingPass={followingPass} onFollowPass={onFollowPass} />
       <p className="mt-1 text-center font-mono text-[10px] leading-tight text-muted" aria-label={`Bearing ${view.bearing} degrees, pitch ${view.pitch} degrees`}>{view.bearing}°<br />{view.pitch}°</p>
     </div>

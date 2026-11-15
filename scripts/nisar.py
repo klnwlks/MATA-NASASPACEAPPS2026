@@ -95,6 +95,9 @@ def granules(bbox):
                 url = next(l["href"] for l in e["links"] if l["href"].startswith("https") and l["href"].endswith(".h5"))
                 g = {"title": e["title"], "track": int(p[5]), "dir": p[6], "frame": int(p[7]), "mode": int(p[8]), "t": datetime.strptime(p[11], "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc), "url": url, "version": sn.replace("NISAR_L2_GCOV_", "")}
                 best.setdefault((g["track"], g["frame"], g["mode"], p[11][:13]), g)  # V1 listed first, so it wins
+            if len(es) < 500:
+                break
+            page += 1
     return sorted(best.values(), key=lambda g: (g["track"], g["t"]))
 
 

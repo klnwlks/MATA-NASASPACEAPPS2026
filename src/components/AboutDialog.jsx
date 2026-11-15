@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { ArrowRight, ScanEye, X } from 'lucide-react'
+import { ArrowRight, X } from 'lucide-react'
+import logoUrl from '../assets/mata-logo.svg'
 
 const HATCH = 'repeating-linear-gradient(135deg, #56607A 0 1.5px, transparent 1.5px 5px)'
 const SWATCH = 'mt-0.5 size-4 shrink-0 rounded-[4px] border'
@@ -26,7 +27,7 @@ export default function AboutDialog({ onClose, floods }) {
     <dialog ref={dialog} onClose={onClose} aria-labelledby="about-title" className="about-dialog m-auto max-h-[calc(100dvh-2rem)] w-[min(36rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl bg-chalk p-0 text-ink shadow-float backdrop:bg-ink/55">
       <div className="p-6 sm:p-8">
         <div className="flex items-center gap-3.5">
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-cobalt text-white"><ScanEye aria-hidden size={24} /></span>
+          <img src={logoUrl} alt="" aria-hidden className="h-11 w-auto shrink-0 object-contain" />
           <h2 id="about-title" className="min-w-0 flex-1 text-2xl font-medium tracking-[-0.02em]">MATA: Tanaw</h2>
           <button type="button" aria-label="Close about" onClick={() => dialog.current.close()} className="-mr-2 grid size-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-cobalt-tint hover:text-cobalt"><X aria-hidden size={18} /></button>
         </div>

@@ -8,6 +8,12 @@
 - National and other province boundary extracts prepared during an earlier scope are retained as data, but the viewer and current processing cover Laguna only.
 - Early Bay preview (`floods/index.json`, `states.json`, `0403402000/`): `scripts/publish_bay_primary.py` reads the existing `/tmp/mata-floods/classes_old.npz` and `manifest_old.json` from the earlier Bay run. The 84 track-32 Sentinel-1 observations span 2024-11-19 to 2026-10-29. The preview uses only the original open-water states and the replay-window February–April dry-season reference; it omits second opinions, duration estimates and unavailable sensitivity ranges. All other barangays have no preview record and remain unknown.
 
+## Secondary aggregation in progress
+
+- The four-municipality cache is `/home/lukas/mata-cache/laguna-four/ev/`, outside the published data. OPERA DSWx-S1 mosaics and NISAR GCOV HV processing were started for the 2024-11-15 to 2026-11-15 window; completion and barangay coverage have not yet been verified.
+- ASF HyP3 track-32 coherence uses four bursts covering the selected barangays. The first pair, 2024-11-19 to 2024-12-01, was fetched; 87 additional consecutive pairs were submitted on 2026-11-15 for 435 credits. They must finish and be fetched before coherence evidence can be evaluated.
+- These data are not part of the published Bay preview. Integrate only after the four-municipality primary run and source processing finish; missing observations remain unknown, and NISAR has no coverage before 2026-06-23.
+
 ## Current geography and previous Bay source material
 
 Retrieved 2026-11-15. Geography rows describe the current assets; the older Bay flood-source rows below document the earlier multi-source experiment, not the primary-only preview or current run. The current run is `scripts/floods.py 32 142` → `scripts/flood_summary.py` → `scripts/combine.py --primary-only`. `lake_level.py` stands alone.

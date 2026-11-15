@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Map, Marker, addProtocol, removeProtocol } from 'maplibre-gl'
-import { Protocol } from 'pmtiles'
+import { Map, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { buildStyle, HOME_VIEW, PROVINCE_VIEW, SHADOW_BUCKETS } from './style.js'
 import { addBoundaryLayers, setFrame, setSelection, setMunicipalitySelection, setLabelMunicipalities, setStates, BOUNDARY_LAYERS, PIN_ZOOM } from './boundaries.js'
@@ -43,8 +42,6 @@ export default function MapStage({ barangays, floods, manifest, focus, focusPsgc
   const whenLoaded = (fn) => (loaded.current ? fn() : queue.current.push(fn))
 
   useEffect(() => {
-    const protocol = new Protocol()
-    addProtocol('pmtiles', protocol.tile)
     let map
     // A 2x screen costs 4x the fragments of 1x for little visible gain under terrain, haze and 3D; 1.5x keeps text crisp.
     // MSAA only pays off at 1x: above that the extra pixels already smooth the edges.
@@ -62,7 +59,6 @@ export default function MapStage({ barangays, floods, manifest, focus, focusPsgc
         canvasContextAttributes: { antialias: pixelRatio <= 1 },
       })
     } catch {
-      removeProtocol('pmtiles')
       live.current.onStatus('webgl', 'failed')
       return
     }
@@ -127,7 +123,6 @@ export default function MapStage({ barangays, floods, manifest, focus, focusPsgc
       onMap(null)
       mapRef.current = null
       map.remove()
-      removeProtocol('pmtiles')
     }
   }, [onMap])
 

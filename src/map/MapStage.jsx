@@ -21,7 +21,7 @@ const WATER_ZOOM = 11
 const TREES_ZOOM = 13
 const gate = (on, zoom, at) => (on ? zoom >= at - 0.5 : zoom >= at)
 
-export default function MapStage({ barangays, floods, manifest, focus, frame, selectedId, show, fit, homeTick, time, onSelect, onMunicipality, onProvince, onCenter, onStatus, onMap }) {
+export default function MapStage({ barangays, floods, manifest, focus, frame, selectedId, show, fit, homeTick, time, onSelect, onMunicipality, onCenter, onStatus, onMap }) {
   const el = useRef(null)
   const mapRef = useRef(null)
   const live = useRef({})
@@ -31,7 +31,7 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
   const pins = useRef([])
   const [zoomed, setZoomed] = useState({ water: false, trees: false })
   useEffect(() => {
-    live.current = { onSelect, onMunicipality, onProvince, onCenter, onStatus, barangays, time, frame, focus }
+    live.current = { onSelect, onMunicipality, onCenter, onStatus, barangays, time, frame, focus }
   })
   // Style-dependent work waits for the first 'load'; map.loaded() is false whenever tiles are in flight, so it cannot gate this.
   const whenLoaded = (fn) => (loaded.current ? fn() : queue.current.push(fn))
@@ -47,10 +47,9 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
       map = new Map({
         container: el.current,
         style: buildStyle(window.location.origin),
-        center: [122.5, 12.7],
-        zoom: 5,
-        bearing: 0,
-        pitch: 0,
+        center: [121.32, 14.28],
+        zoom: 9.4,
+        ...PROVINCE_VIEW,
         maxPitch: 70, // HOME_VIEW sits at 62; steeper views pull in many far tiles for a strip of horizon
         attributionControl: false,
         pixelRatio,
@@ -95,14 +94,6 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
     map.on('load', () => {
       loaded.current = true
       onMap(map)
-      map.addSource('provinces', { type: 'geojson', data: `${origin}data/provinces.geojson`, promoteId: 'code' })
-      map.addLayer({ id: 'province-fill', type: 'fill', source: 'provinces', maxzoom: 9, paint: { 'fill-color': '#DCE7A6', 'fill-opacity': 0.8 } })
-      map.addLayer({ id: 'province-line', type: 'line', source: 'provinces', maxzoom: 9, paint: { 'line-color': '#56607A', 'line-width': 0.8 } })
-      map.addLayer({ id: 'province-label', type: 'symbol', source: 'provinces', minzoom: 5.5, maxzoom: 9, layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 11 }, paint: { 'text-color': '#0F1B33', 'text-halo-color': '#FBFAF6', 'text-halo-width': 1 } })
-      map.on('click', 'province-fill', (e) => {
-        const feature = e.features?.[0]
-        if (feature) live.current.onProvince({ code: feature.properties.code, name: feature.properties.name, region: feature.properties.region })
-      })
       applySun(map, live.current.time)
       for (const fn of queue.current.splice(0)) fn()
     })
@@ -139,7 +130,7 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
     if (!map || !barangays) return
     whenLoaded(() => {
       addBoundaryLayers(map, barangays, (id) => live.current.onSelect(id))
-      map.fitBounds([[114.2, 4.3], [126.8, 21.6]], { bearing: 0, pitch: 0, padding: padding(), duration: 0 })
+      map.fitBounds(barangays.bounds, { ...PROVINCE_VIEW, padding: padding(), duration: 0 })
       pins.current = barangays.municipalities.map((m) => {
         const pin = document.createElement('button')
         pin.type = 'button'
@@ -223,12 +214,12 @@ export default function MapStage({ barangays, floods, manifest, focus, frame, se
   useEffect(() => {
     const map = mapRef.current
     if (!map || !homeTick || !live.current.barangays) return
-    map.fitBounds([[114.2, 4.3], [126.8, 21.6]], { bearing: 0, pitch: 0, padding: padding(), duration: dur(1200) })
+    map.fitBounds(live.current.barangays.bounds, { ...PROVINCE_VIEW, padding: padding(), duration: dur(1200) })
   }, [homeTick])
 
   return (
     <div className="absolute inset-0">
-      <div ref={el} className="h-full w-full" role="region" aria-label="Map of the Philippines" />
+      <div ref={el} className="h-full w-full" role="region" aria-label="Map of Laguna province" />
     </div>
   )
 }

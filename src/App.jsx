@@ -20,8 +20,6 @@ export default function App() {
   const [map, setMap] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [municipality, setMunicipality] = useState(null)
-  const [province, setProvince] = useState(null)
-  const [provinces, setProvinces] = useState([])
   const [focusId, setFocusId] = useState(null) // the municipality the 3D layers belong to: under the screen centre when zoomed in
   const [manifests, setManifests] = useState({}) // munipsgc -> { status: 'loading' | 'ok' | 'failed', data }
   const requested = useRef(new Set())
@@ -34,13 +32,6 @@ export default function App() {
   const time = useMemo(() => (clockOverride == null ? (pass ?? manilaTime(15 * 60 + 30)) : manilaTime(clockOverride, pass ?? new Date())), [clockOverride, pass])
   const minutes = manilaMinutes(time)
 
-
-  useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}data/provinces.geojson`)
-      .then((res) => { if (!res.ok) throw new Error(`provinces ${res.status}`); return res.json() })
-      .then((data) => setProvinces(data.features.map((f) => f.properties).sort((a, b) => a.name.localeCompare(b.name))))
-      .catch((e) => console.warn('Province list unavailable', e))
-  }, [])
   const report = useCallback((key, value) => setStatus((s) => (s[key] === value ? s : { ...s, [key]: value })), [])
 
   useEffect(() => {
@@ -91,7 +82,6 @@ export default function App() {
   const select = useCallback(
     (id, locate) => {
       setSelectedId(id)
-      setProvince(null)
       setMunicipality(null)
       const b = barangays?.list.find((x) => x.psgc === id)
       if (b) setFocusId(b.munipsgc)
@@ -101,7 +91,6 @@ export default function App() {
   )
 
   const openMunicipality = useCallback((m) => {
-    setProvince(null)
     setSelectedId(null)
     setMunicipality(m)
     setFocusId(m.psgc)
@@ -116,23 +105,10 @@ export default function App() {
   return (
     <div className="relative h-full overflow-hidden">
       <div className="absolute inset-0">
-        <MapStage barangays={barangays} floods={floods} manifest={manifests[focusId]?.data ?? null} focus={focus} frame={frame} selectedId={selectedId} show={show} fit={fit} homeTick={homeTick} time={time} onSelect={select} onMunicipality={openMunicipality} onProvince={(p) => { setProvince(p); setSelectedId(null); setMunicipality(null) }} onCenter={setFocusId} onStatus={report} onMap={setMap} />
+        <MapStage barangays={barangays} floods={floods} manifest={manifests[focusId]?.data ?? null} focus={focus} frame={frame} selectedId={selectedId} show={show} fit={fit} homeTick={homeTick} time={time} onSelect={select} onMunicipality={openMunicipality} onCenter={setFocusId} onStatus={report} onMap={setMap} />
         <Navbar list={barangays?.list ?? []} municipalities={barangays?.municipalities ?? []} frames={floods?.frames.length} boundariesReady={!!barangays} onSelect={select} onMunicipality={openMunicipality} />
         <Status status={status} />
-        <label className="pointer-events-auto absolute left-[4.75rem] top-20 z-10 rounded-xl bg-chalk p-2 shadow-float md:left-3">
-          <span className="sr-only">Select a province</span>
-          <select aria-label="Select a province" value={province?.code ?? ''} onChange={(e) => { setProvince(provinces.find((p) => p.code === e.target.value) ?? null); setSelectedId(null); setMunicipality(null) }} className="max-w-52 rounded-lg bg-chalk px-2 py-1 text-sm text-ink">
-            <option value="">Select a province</option>
-            {provinces.map((p) => <option key={p.code} value={p.code}>{p.name} · {p.region}</option>)}
-          </select>
-          {floods?.coverageNote && <span className="block px-2 text-xs text-muted">{floods.coverageNote}</span>}
-        </label>
-        {province && <aside aria-label={`${province.name} province`} className="pointer-events-auto absolute inset-x-3 bottom-24 z-10 rounded-2xl bg-chalk p-4 shadow-float md:inset-x-auto md:bottom-auto md:right-3 md:top-20 md:w-72">
-          <button type="button" onClick={() => setProvince(null)} aria-label="Close province details" className="float-right rounded-lg px-2 py-1 text-sm text-muted hover:bg-cobalt-tint">Close</button>
-          <h2 className="text-xl font-medium">{province.name}</h2>
-          <p className="mt-1 text-sm text-muted">{province.region} · {province.code}</p>
-          <p className="mt-3 text-sm">Province-wide flood observations are not loaded. Unavailable does not mean dry.</p>
-        </aside>}
+        {floods?.coverageNote && <p className="pointer-events-auto absolute left-[4.75rem] top-20 z-10 rounded-xl bg-chalk px-3 py-2 text-xs text-muted shadow-float md:left-3">{floods.coverageNote}</p>}
         {selected && <BarangayCard barangay={selected} states={floods?.states} manifest={manifests[selected.munipsgc]} frames={floods?.frames ?? []} frame={frame} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} onFrame={setFrame} />}
         {municipality && <MunicipalityCard municipality={municipality} psgcs={barangays.list.filter((b) => b.munipsgc === municipality.psgc).map((b) => b.psgc)} floods={floods} onFrame={setFrame} onClose={() => setMunicipality(null)} />}
         {floods && <Legend frame={floods.frames[frame]} />}

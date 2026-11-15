@@ -20,10 +20,9 @@ SRC, OUT = "/tmp/mata-floods/classes.npz", "public/data/floods"
 FLOOR_HA, NOISE_FACTOR, MIN_VISIBLE = 2.0, 3.0, 0.25
 NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW, BLIND = range(6)
 # RGBA per class: unknown (no data, steep, radar-blind) is a pale grey veil, never drawn as dry; flood is cyan, apart from
-# the cobalt selection; low confidence is the same cyan in diagonal stripes, so it differs by pattern as well as by colour.
+# the cobalt selection; low confidence uses the same alpha channel at 170 and the viewer draws it fainter and paler.
 UNKNOWN = (120, 120, 120, 70)
 PALETTE = {NODATA: UNKNOWN, BLIND: UNKNOWN, DRY: (0, 0, 0, 0), PERMANENT: (0, 0, 0, 0), FLOOD: (14, 157, 184, 215), FLOOD_LOW: (14, 157, 184, 170)}
-STRIPE_PX = 6
 
 
 def day(iso):
@@ -46,11 +45,8 @@ def main():
     for k, rgba in PALETTE.items():
         lut[k] = rgba
     frames = []
-    rows, cols = np.indices((h, w))
-    gap_stripe = (rows + cols) % STRIPE_PX >= STRIPE_PX // 2
     for i, d in enumerate(dates):
         rgba = lut[classes[i]]
-        rgba[(classes[i] == FLOOD_LOW) & gap_stripe] = 0
         rgba[~in_muni] = 0  # frames show the municipality only; outside it nothing was assessed for this product
         name = f"{d[:10].replace('-', '')}.png"
         Image.fromarray(rgba, "RGBA").save(f"{OUT}/{name}", optimize=True)

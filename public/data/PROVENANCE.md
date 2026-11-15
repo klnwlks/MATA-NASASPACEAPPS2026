@@ -10,7 +10,7 @@
 
 ## Secondary aggregation in progress
 
-- The four-municipality cache is `/home/lukas/mata-cache/laguna-four/ev/`, outside the published data. OPERA DSWx-S1 mosaics and NISAR GCOV HV processing were started for the 2024-11-15 to 2026-11-15 window; completion and barangay coverage have not yet been verified.
+- The four-municipality cache is `/home/lukas/mata-cache/laguna-four/ev/`, outside the published data. OPERA DSWx-S1 processing produced `opera.npz` for 298 catalogued pass groups in the 2024-11-15 to 2026-11-15 window; some groups do not observe the grid, so the per-barangay `seen` values must be used. Ten primary passes had no same-date, same-track catalogued group. NISAR GCOV HV processing was started but completion and barangay coverage have not yet been verified.
 - ASF HyP3 track-32 coherence uses four bursts covering the selected barangays. The first pair, 2024-11-19 to 2024-12-01, was fetched; 87 additional consecutive pairs were submitted on 2026-11-15 for 435 credits. They must finish and be fetched before coherence evidence can be evaluated.
 - These data are not part of the published Bay preview. Integrate only after the four-municipality primary run and source processing finish; missing observations remain unknown, and NISAR has no coverage before 2026-06-23.
 

@@ -1,5 +1,5 @@
 import { Crosshair, Hash, MapPin, Radar, Shapes, Landmark, X } from 'lucide-react'
-import { DATA_VERSION, shortDate } from '../data.js'
+import { DATA_VERSION, shortDate, stateAt } from '../data.js'
 import SecondOpinions from './SecondOpinions.jsx'
 
 function Row({ icon: Icon, tone, label, children, mono }) {
@@ -52,7 +52,34 @@ function Observations({ rec, frame, frames, onFrame }) {
   )
 }
 
-function Selected({ barangay, rec, frame, frames, onClose, onLocate, onFrame }) {
+// Until the municipality's record arrives (or if it never does), the province summary still gives this pass's state.
+function Summary({ state, status, municipality }) {
+  if (state == null)
+    return (
+      <section className="mt-4 flex gap-3 rounded-xl bg-coral-tint p-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/70 text-coral-ink"><Radar aria-hidden size={16} /></span>
+        <div>
+          <h3 className="text-sm font-medium text-coral-ink">Observations</h3>
+          <p className="mt-0.5 text-sm">No observations loaded</p>
+          <p className="text-sm text-muted">Empty ≠ dry.</p>
+        </div>
+      </section>
+    )
+  const [label, tone] = STATE[state]
+  const bad = status !== 'loading'
+  return (
+    <section className={`mt-4 rounded-xl p-3 ${bad ? 'bg-coral-tint' : 'bg-cobalt-tint'}`}>
+      <div className="flex items-center gap-2">
+        <Radar aria-hidden size={16} className={bad ? 'text-coral-ink' : 'text-cobalt-ink'} />
+        <h3 className={`text-sm font-medium ${bad ? 'text-coral-ink' : 'text-cobalt-ink'}`}>This pass</h3>
+        <span className={`ml-auto rounded-lg px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
+      </div>
+      <p className="mt-1 text-sm text-muted">{bad ? `No detailed record for this barangay from ${municipality}, so flooded runs and hectares are not shown. Empty ≠ dry.` : 'Loading flooded runs and open-water hectares…'}</p>
+    </section>
+  )
+}
+
+function Selected({ barangay, rec, state, status, frame, frames, onClose, onLocate, onFrame }) {
   return (
     <div className="overflow-y-auto p-4">
       <div className="flex items-start gap-3">
@@ -66,28 +93,16 @@ function Selected({ barangay, rec, frame, frames, onClose, onLocate, onFrame }) 
         <Row icon={Shapes} tone="bg-amber-tint text-amber-ink" label="Geometry">{DATA_VERSION.source}, {DATA_VERSION.validOn}</Row>
       </dl>
       <button type="button" onClick={onLocate} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-cobalt px-3 py-2 text-sm font-medium text-white hover:bg-cobalt-ink"><Crosshair aria-hidden size={16} />Locate on map</button>
-      {rec ? (
-        <Observations rec={rec} frame={frame} frames={frames} onFrame={onFrame} />
-      ) : (
-        <section className="mt-4 flex gap-3 rounded-xl bg-coral-tint p-3">
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/70 text-coral-ink"><Radar aria-hidden size={16} /></span>
-          <div>
-            <h3 className="text-sm font-medium text-coral-ink">Observations</h3>
-            <p className="mt-0.5 text-sm">No observations loaded</p>
-            <p className="text-sm text-muted">Empty ≠ dry.</p>
-          </div>
-        </section>
-      )}
+      {rec ? <Observations rec={rec} frame={frame} frames={frames} onFrame={onFrame} /> : <Summary state={state} status={status} municipality={barangay.municipality} />}
     </div>
   )
 }
 
-export default function BarangayCard({ list, floods, frame, selectedId, onClose, onLocate, onFrame }) {
-  const barangay = list.find((b) => b.psgc === selectedId)
-  if (!barangay) return null
+export default function BarangayCard({ barangay, states, manifest, frames, frame, onClose, onLocate, onFrame }) {
+  const rec = manifest?.data?.barangays[barangay.psgc]
   return (
     <aside aria-label="Barangay details" className="pointer-events-auto fixed inset-x-0 bottom-[4.75rem] z-10 flex max-h-[45vh] flex-col overflow-hidden rounded-t-2xl bg-chalk shadow-float md:absolute md:inset-x-auto md:bottom-auto md:right-3 md:top-[5rem] md:max-h-[calc(100%-6.5rem)] md:w-[22rem] md:rounded-2xl">
-      <Selected barangay={barangay} rec={floods?.barangays[barangay.psgc]} frame={frame} frames={floods?.frames ?? []} onClose={onClose} onLocate={() => onLocate(barangay)} onFrame={onFrame} />
+      <Selected barangay={barangay} rec={rec} state={states ? stateAt(states, barangay.psgc, frame) : null} status={manifest?.status ?? 'loading'} frame={frame} frames={frames} onClose={onClose} onLocate={() => onLocate(barangay)} onFrame={onFrame} />
     </aside>
   )
 }

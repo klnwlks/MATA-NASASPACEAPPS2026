@@ -3,7 +3,7 @@ import { Database, ScanEye, Satellite } from 'lucide-react'
 import BarangaySearch from './BarangaySearch.jsx'
 import SourcesPanel from './SourcesPanel.jsx'
 
-export default function Navbar({ list, frames, boundariesReady, onSelect }) {
+export default function Navbar({ list, municipalities, frames, boundariesReady, onSelect, onMunicipality }) {
   const [sources, setSources] = useState(false)
   return (
     <header className="pointer-events-auto absolute inset-x-3 top-3 z-20 flex items-center gap-3 rounded-2xl bg-chalk px-3 py-2.5 shadow-float">
@@ -11,7 +11,7 @@ export default function Navbar({ list, frames, boundariesReady, onSelect }) {
         <span className="grid size-9 place-items-center rounded-xl bg-cobalt text-white"><ScanEye aria-hidden size={20} /></span>
         <h1 className="whitespace-nowrap text-lg font-medium"><span className="hidden sm:inline">MATA: Tanaw</span><span className="sm:hidden">MATA</span></h1>
       </div>
-      <BarangaySearch list={list} disabled={!boundariesReady} onSelect={onSelect} />
+      <BarangaySearch list={list} municipalities={municipalities} disabled={!boundariesReady} onSelect={onSelect} onMunicipality={onMunicipality} />
       <p className={`ml-auto hidden items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-medium lg:flex ${frames ? 'bg-cobalt-tint text-cobalt-ink' : 'bg-coral-tint text-coral-ink'}`}>
         <Satellite aria-hidden size={16} />{frames ? `Observations: ${frames} Sentinel-1 dates` : 'Observations: none loaded'}
       </p>

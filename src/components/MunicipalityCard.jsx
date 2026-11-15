@@ -77,7 +77,6 @@ export default function MunicipalityCard({ municipality, psgcs, floods, onFrame,
           </div>
           <button type="button" aria-label="Close" onClick={onClose} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-cobalt-tint hover:text-cobalt"><X aria-hidden size={18} /></button>
         </div>
-        <p className="mt-2 text-xs text-muted">Satellite radar flags likely floodwater per barangay. These are early signals, not confirmed reports, and gaps between passes are unknown.</p>
         {floods && events.length > 0 && <Episodes events={events} frames={floods.frames} total={psgcs.length} onFrame={onFrame} />}
         {floods && !events.length && <p className="mt-3 text-sm text-muted">{assessed ? 'No barangay here was flagged on any pass.' : 'No usable radar data for this municipality yet.'} A missing signal does not mean the area stayed dry.</p>}
         <p className="mt-3 text-xs text-muted">{floods ? `Covers ${shortDate(floods.frames[0].utc)} – ${shortDate(floods.frames.at(-1).utc)} (Philippine time). Storms are not named.` : 'No observations loaded. Empty does not mean dry.'}</p>

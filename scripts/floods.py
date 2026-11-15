@@ -391,30 +391,118 @@ def classify(s, thr, month, t, st):
             nodata[a:b] = ~np.isfinite(sc) | ~np.isfinite(baseline) | (steep[a:b] & ~perm[a:b])
         if lake_any:
             lab, _ = label(cand | lake)
-            linked = cand & np.isin(lab, np.unique(lab[lake]))
-            f = linked | (cand & seasonal)
-            return f, f & low_conf & ~linked  # isolated cropland or wetland water stays low confidence
+            linked = cand & (lab == lab[lake][0])  # the lake is one component, so one label
+            del lab
+        else:
+            linked = np.zeros(s.shape, bool)
+        f = cand
+        low = f & low_conf & ~linked  # isolated cropland or wetland water stays low confidence
+        return f, low, (nodata if want_nodata else None)
 
-        for i, d in enumerate(dates):
-            s = stack[i].astype("float32")
-            m = int(d[5:7]) - 1
-            z = (s - hist["median"][m].astype("float32")) / hist["sigma"][m].astype("float32")
-            f, low = flood(s, z, thr[i], 0.0, Z_THR, DROP_DB)
-            c = np.full(shape, DRY, "uint8")
-            c[f] = FLOOD
-            c[low] = FLOOD_LOW
-            c[blind & ~f] = BLIND
-            c[permanent] = PERMANENT
-            c[~np.isfinite(s) | ~np.isfinite(z) | (steep & ~permanent)] = NODATA
-            variants = [np.packbits(v[0] & ~v[1]) for v in (flood(s, z, thr[i], *LOOSE), flood(s, z, thr[i], *STRICT))]
-            rows.append((d, platforms[i], track, c, *variants, thr[i]))
-        del stack
-    rows.sort(key=lambda r: r[0])
-    np.savez_compressed(f"{OUT}/classes.npz", classes=np.stack([r[3] for r in rows]), loose=np.stack([r[4] for r in rows]), strict=np.stack([r[5] for r in rows]),
-                        dates=np.array([r[0] for r in rows]), platforms=np.array([r[1] for r in rows]), tracks=np.array([r[2] for r in rows]),
-                        thresholds=np.array([r[6] for r in rows]), transform=np.array(transform)[:6], dry_season=np.array(sorted(dry_ref)),
-                        acquired=np.array([f"{d}:{p}:{t}" for t in tracks for d, p, _ in acquisitions(t)]))
-    print(len(rows), "passes classified;", len(dry_ref), "dry-season reference passes")
+    f, low, nodata = flood(*BASE, want_nodata=True)
+    c = np.full(s.shape, DRY, "uint8")
+    c[f] = FLOOD
+    c[low] = FLOOD_LOW
+    c[blind & ~f] = BLIND
+    c[perm] = PERMANENT
+    c[nodata] = NODATA
+    del f, low, nodata
+    variants = []
+    for v in (LOOSE, STRICT):
+        f, low, _ = flood(*v)
+        variants.append(f & ~low)
+        del f, low
+    return c, variants
+
+
+def pass_stats(c, variants, ids, n, tot):
+    ha = px_ha(t_global["T"])
+    seen = per_barangay((c != NODATA) & (c != BLIND), ids, n)
+    return {"high": per_barangay(c == FLOOD, ids, n) * ha, "low": per_barangay(c == FLOOD_LOW, ids, n) * ha,
+            "visible": np.divide(seen, tot, out=np.zeros(n + 1), where=tot > 0),
+            "strict": per_barangay(variants[1], ids, n) * ha, "loose": per_barangay(variants[0], ids, n) * ha}
+
+
+t_global = {}
+
+
+def write_stats(rows):
+    rows = sorted(rows, key=lambda r: r["utc"])
+    atomic_savez(f"{CACHE}/stats.npz", False, **{k: np.array([r[k] for r in rows], "float64" if k not in ("utc", "platform", "track") else None)
+                 for k in ("high", "low", "strict", "loose", "visible", "thr")} | {"dates": np.array([r["utc"] for r in rows]), "platforms": np.array([r["platform"] for r in rows]),
+                 "tracks": np.array([r["track"] for r in rows]), "thresholds": np.array([r["thr"] for r in rows])})
+
+
+def main(only):
+    if PROVINCE not in (None, "PH04034"):
+        raise RuntimeError("This classifier is Laguna-specific; do not use its DEM, tracks or lake connectivity for another province")
+    os.makedirs(f"{CACHE}/cls", exist_ok=True)
+    T, shape = grid()
+    H, W = shape
+    t_global["T"] = T
+    feats = features()
+    n = len(feats)
+    bbox = province_bbox(T, shape)
+    sas = Sas()
+    status = Status()
+    tracks = {t: d for t, d in TRACKS.items() if not only or t in only}
+    items = {t: rtc_items(t, d, START, END, bbox) for t, d in tracks.items()}
+    for t in tracks:
+        print(t, len(items[t]), "RTC scenes", date_of(items[t][0]), "->", date_of(items[t][-1]), flush=True)
+    everything = sorted(((f["properties"]["datetime"], t, f) for t in tracks for f in items[t]), key=lambda x: x[0])
+    update_grid(transform=np.array(T)[:6], shape=np.array(shape), psgc=np.array([f["properties"]["psgc"] for f in feats]),
+                dates=np.array([x[0] for x in everything]), platforms=np.array([x[2]["properties"]["platform"].upper() for x in everything]),
+                tracks=np.array([x[1] for x in everything]), thresholds=np.full(len(everything), np.nan),
+                dry_season=np.array([x[0] for x in everything if x[0][5:7] in ("02", "03", "04")]))
+    acquired = lambda: update_grid(acquired=np.array([f"{d}:{p}:{t}" for t in tracks for d, p, _ in acquisitions(t)]))
+    try:
+        acquired()
+    except OSError as e:
+        print("CDSE catalogue unreachable now, will retry at the end:", e, flush=True)
+
+    st = static_layers(T, shape)
+    for t in tracks:
+        if not os.path.exists(f"{CACHE}/grid.npz") or f"permanent_{t}" not in np.load(f"{CACHE}/grid.npz").files:
+            phase_a(t, items[t], T, shape, sas, status)
+    gz = np.load(f"{CACHE}/grid.npz")
+    ctx = {t: {"perm": np.unpackbits(gz[f"permanent_{t}"], count=H * W).astype(bool).reshape(shape),
+               "lake": np.unpackbits(gz[f"lake_{t}"], count=H * W).astype(bool).reshape(shape),
+               "ref": np.load(f"{CACHE}/ref_{t}.npy", mmap_mode="r")} for t in tracks}
+    ids = barangay_raster(T, shape)[1]
+    tot = per_barangay(np.ones(shape, bool), ids, n)
+
+    rows, jobs = [], []
+    path = lambda tr, f: f"{CACHE}/cls/{date_of(f).replace('-', '')}_{tr}.npz"
+    for utc, t, f in everything:
+        if os.path.exists(path(t, f)):
+            with np.load(path(t, f)) as d:
+                rows.append({k: d[k] for k in ("high", "low", "visible", "strict", "loose")} | {"thr": float(d["thr"]), "utc": str(d["utc"]), "platform": str(d["platform"]), "track": t})
+        else:
+            jobs.append((t, f))
+    total = len(everything)
+    print(f"phase B: {len(rows)} passes already classified, {len(jobs)} to do", flush=True)
+    if rows:
+        write_stats(rows)
+    for k, ((t, f), s) in enumerate(Prefetch(jobs, lambda j: load_scene(j[1], sas, T, shape))):
+        t0 = time.time()
+        utc, month = f["properties"]["datetime"], int(date_of(f)[5:7]) - 1
+        thr = otsu(s)
+        c, variants = classify(s, thr, month, ctx[t], st)
+        del s
+        row = pass_stats(c, variants, ids, n, tot) | {"thr": thr, "utc": utc, "platform": f["properties"]["platform"].upper(), "track": t}
+        atomic_savez(path(t, f), True, c=c, high=row["high"], low=row["low"], visible=row["visible"], strict=row["strict"], loose=row["loose"],
+                     thr=np.array(thr), utc=np.array(utc), platform=np.array(row["platform"]))
+        rows.append(row)
+        write_stats(rows)
+        if (k + 1) % 10 == 0 or k + 1 == len(jobs):
+            by = {r["utc"]: r["thr"] for r in rows}
+            update_grid(thresholds=np.array([by.get(x[0], np.nan) for x in everything]))
+        status.write("phase B", k + 1, len(jobs), f"{len(rows)}/{total} passes classified overall; last {date_of(f)} track {t} thr {thr:.2f} dB, "
+                     f"flood {row['high'].sum():.0f} ha, low {row['low'].sum():.0f} ha, classify+save {time.time() - t0:.0f} s")
+        print("B", t, date_of(f), f"thr {thr:.2f} high {row['high'].sum():.0f} ha low {row['low'].sum():.0f} ha ({time.time() - t0:.0f} s)", flush=True)
+    if "acquired" not in np.load(f"{CACHE}/grid.npz").files:
+        acquired()
+    print(len(rows), "passes classified", flush=True)
 
 
 if __name__ == "__main__":

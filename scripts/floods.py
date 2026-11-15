@@ -9,9 +9,10 @@ Inputs (streamed as row blocks, nothing large lands on disk except the caches be
   - Copernicus GLO-30 (slope mask; four 1-degree tiles N13/N14 x E120/E121, each warped and fmax-combined) and ESA WorldCover
     2021 tile N12E120 (cropland and wetland low confidence unless lake-connected; tree cover and built-up radar-blind).
 Method: water is below the per-pass Otsu threshold. A flood candidate is water outside permanent water, at least 3 dB
-darker than the dry-season median and on slopes under 5 degrees. Isolated cropland or wetland water is low confidence.
-The classification is repeated with looser and stricter thresholds for hectare ranges. The four-year seasonal baseline
-is deferred, so seasonal agricultural changes may be misclassified as flood. This implementation is specific to Laguna;
+darker than the dry-season median, unusually dark for its calendar month (z <= Z_THR against the four-year same-track history
+from history.py, 3-month window) and on slopes under 5 degrees. Isolated cropland or wetland water is low confidence.
+The classification is repeated with looser and stricter thresholds for hectare ranges. Seasonal agricultural water is
+suppressed only where history shows it is normal for that month. This implementation is specific to Laguna;
 its permanent-water connectivity must not be reused as a generic river connectivity model for other provinces.
 
 Phase A, per track: stream every Feb-Apr pass of the window, per-pass Otsu threshold, running count for `permanent` (at least
@@ -32,7 +33,7 @@ Files written (CACHE = common.CACHE, atomically via rename):
              loose rules), visible (share of the barangay's pixels that are neither NODATA nor BLIND), each (passes, n_barangays + 1);
              dates (UTC iso), platforms, tracks, thresholds. Passes are sorted by UTC time.
   S1CORE_STATUS.txt  progress and ETA.
-Run: .venv/bin/python scripts/floods.py [track ...]. No historical normalization is required.
+Run after history.py: .venv/bin/python scripts/floods.py [track ...].
 """
 import json, os, shutil, sys, threading, time, urllib.parse, urllib.request
 from collections import deque
@@ -373,22 +374,24 @@ def per_barangay(mask, ids, n):
 
 
 def classify(s, thr, month, t, st):
-    """Classify against this track's replay-window dry-season reference, without historical normalization."""
+    """Classify against the replay-window dry-season reference and the four-year same-track seasonal history of this month."""
     steep, low_conf, blind = st
     perm, lake, ref = t["perm"], t["lake"], t["ref"]
     H, W = s.shape
     lake_any = bool(lake.any())
 
     def flood(shift, zthr, drop, want_nodata=False):
-        # A same-track dry-season reference within the replay window is the only baseline in this run.
+        # Water must be darker than the dry reference AND unusual for the month (z against history).
         # Isolated cropland and wetlands remain low-confidence because paddies can resemble flood water.
         cand, nodata = np.empty(s.shape, bool), np.empty(s.shape, bool)
         for a in range(0, H, CHUNK):
             b = min(a + CHUNK, H)
             sc = s[a:b].astype("float32")
             baseline = ref[a:b].astype("float32")
-            cand[a:b] = (sc < thr + shift) & ~perm[a:b] & ~steep[a:b] & (sc - baseline <= -drop)
-            nodata[a:b] = ~np.isfinite(sc) | ~np.isfinite(baseline) | (steep[a:b] & ~perm[a:b])
+            hm, hs = t["med"][month, a:b], t["sig"][month, a:b]
+            z = (sc - np.where(hm == Q_NONE, np.nan, Q_MIN + hm * np.float32(Q_STEP))) / np.where(hs == Q_NONE, np.nan, hs * np.float32(SIG_STEP))
+            cand[a:b] = (sc < thr + shift) & ~perm[a:b] & ~steep[a:b] & (sc - baseline <= -drop) & (z <= zthr)
+            nodata[a:b] = ~np.isfinite(sc) | ~np.isfinite(baseline) | ~np.isfinite(z) | (steep[a:b] & ~perm[a:b])
         if lake_any:
             lab, _ = label(cand | lake)
             linked = cand & (lab == lab[lake][0])  # the lake is one component, so one label
@@ -467,7 +470,8 @@ def main(only):
     gz = np.load(f"{CACHE}/grid.npz")
     ctx = {t: {"perm": np.unpackbits(gz[f"permanent_{t}"], count=H * W).astype(bool).reshape(shape),
                "lake": np.unpackbits(gz[f"lake_{t}"], count=H * W).astype(bool).reshape(shape),
-               "ref": np.load(f"{CACHE}/ref_{t}.npy", mmap_mode="r")} for t in tracks}
+               "ref": np.load(f"{CACHE}/ref_{t}.npy", mmap_mode="r"), "med": np.load(f"{CACHE}/history_{t}_med.npy", mmap_mode="r"),
+               "sig": np.load(f"{CACHE}/history_{t}_sig.npy", mmap_mode="r")} for t in tracks}
     ids = barangay_raster(T, shape)[1]
     tot = per_barangay(np.ones(shape, bool), ids, n)
 

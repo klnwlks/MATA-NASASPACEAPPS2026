@@ -157,7 +157,7 @@ function Selected({ barangay, rec, state, status, frame, frames, onClose, onLoca
 export default function BarangayCard({ barangay, states, manifest, frames, frame, onClose, onLocate, onFrame }) {
   const rec = manifest?.data?.barangays[barangay.psgc]
   return (
-    <aside aria-label="Barangay details" className="pointer-events-auto fixed inset-x-0 bottom-[4.75rem] z-10 flex max-h-[45vh] flex-col overflow-hidden rounded-t-2xl bg-chalk shadow-float md:absolute md:inset-x-auto md:bottom-auto md:right-3 md:top-[5rem] md:max-h-[calc(100%-6.5rem)] md:w-[22rem] md:rounded-2xl">
+    <aside aria-label="Barangay details" className="pointer-events-auto fixed inset-x-0 bottom-0 z-40 flex max-h-[45vh] flex-col overflow-hidden rounded-t-2xl bg-chalk shadow-float md:absolute md:inset-x-auto md:bottom-auto md:right-3 md:top-[5rem] md:z-10 md:max-h-[calc(100%-6.5rem)] md:w-[22rem] md:rounded-2xl">
       <Selected barangay={barangay} rec={rec} state={states ? stateAt(states, barangay.psgc, frame) : null} status={manifest?.status ?? 'loading'} frame={frame} frames={frames} onClose={onClose} onLocate={() => onLocate(barangay)} onFrame={onFrame} />
     </aside>
   )

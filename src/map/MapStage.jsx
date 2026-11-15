@@ -111,7 +111,8 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
 
   useEffect(() => setSelection(mapRef.current, selectedId), [selectedId])
 
-  // One water mesh for the whole run; each observed date swaps its mask and surface height.
+  // One water layer for the whole run: each observed date swaps its mask and surface height, and the evidence
+  // overlays (coherence loss, NISAR) ride on it with the same smoothed edges.
   const water = useRef(null)
   useEffect(() => {
     const map = mapRef.current
@@ -119,29 +120,11 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
     if (!map || !f) return
     const apply = () => {
       water.current ??= addWaterLayer(map, floods.corners, `${window.location.origin}${import.meta.env.BASE_URL}`).catch((e) => console.error(e))
-      water.current.then((w) => w?.set(f.url, floodRise(floods.lake, f.utc)))
-    }
-    if (map.loaded()) apply()
-    else map.once('load', apply)
-  }, [floods, frame])
-
-  // Low-confidence evidence overlays, draped on the terrain: built-up coherence loss (amber stripes) and NISAR
-  // HV darkening (cyan dots). Hidden on passes without that source, and whenever toggled off.
-  useEffect(() => {
-    const map = mapRef.current
-    const f = floods?.frames[frame]
-    if (!map || !f) return
-    const apply = () => {
-      for (const [key, url] of [['coherence', f.coherenceUrl], ['nisar', f.nisarUrl]]) {
-        const id = `ev-${key}`
-        const src = map.getSource(id)
-        if (url && src) src.updateImage({ url, coordinates: floods.corners })
-        else if (url) {
-          map.addSource(id, { type: 'image', url, coordinates: floods.corners })
-          map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } }, 'night')
-        }
-        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', url && show[key] ? 'visible' : 'none')
-      }
+      water.current.then((w) => {
+        w?.set(f.url, floodRise(floods.lake, f.utc))
+        w?.overlay('coherence', f.coherenceUrl, show.coherence)
+        w?.overlay('nisar', f.nisarUrl, show.nisar)
+      })
     }
     if (map.loaded()) apply()
     else map.once('load', apply)

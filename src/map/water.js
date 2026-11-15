@@ -72,31 +72,43 @@ void main() {
   gl_Position = projectionMatrix * vec4(vW, 1.0);
 }`
 
-// Mask alpha is the frame's class: 215 flood, 170 low confidence, 70 unknown veil (scripts/flood_summary.py).
-const FRAG = /* glsl */ `
+// Shared by the water and the overlays.
+const MASK = /* glsl */ `
 uniform sampler2D uMask;
 uniform vec2 uSize;
-uniform vec3 uEye, uSky, uHorizon, uSunDir;
-uniform float uTime, uSun, uAmb;
-varying vec3 vW;
 varying vec2 vUv;
-void main() {
-  // The mask stores the class in alpha, so filtering it would blend classes. Instead take the four nearest texels,
-  // bilinearly weight each class's indicator, and threshold that field: smooth contours, no class mixing.
-  vec2 f = vUv * uSize - 0.5, w = fract(f), c = floor(f);
-  float seen = 0.0, wet = 0.0, sure = 0.0;
+// The mask stores the class in alpha, so filtering it would blend classes. Instead take the four nearest texels,
+// bilinearly weight each class's indicator, and threshold that field: smooth contours, no class mixing.
+// Returns (any class, water, confident water).
+vec3 field(vec2 uv) {
+  vec2 f = uv * uSize - 0.5, w = fract(f), c = floor(f);
+  vec3 s = vec3(0.0);
   for (int k = 0; k < 4; k++) {
     vec2 o = vec2(k & 1, k >> 1);
     float t = texture2D(uMask, (c + o + 0.5) / uSize).a, wt = (o.x > 0.5 ? w.x : 1.0 - w.x) * (o.y > 0.5 ? w.y : 1.0 - w.y);
-    seen += wt * step(0.05, t); wet += wt * step(0.4, t); sure += wt * step(0.76, t);
+    s += wt * vec3(step(0.05, t), step(0.4, t), step(0.76, t));
   }
+  return s;
+}`
+// Mask alpha is the frame's class: 215 flood, 170 low confidence, 70 unknown veil (scripts/flood_summary.py).
+const FRAG = MASK + /* glsl */ `
+uniform vec3 uEye, uSky, uHorizon, uSunDir;
+uniform float uTime, uSun, uAmb;
+varying vec3 vW;
+void main() {
+  vec3 F = field(vUv);
+  float wet = F.y, sure = F.z;
   float edge = smoothstep(0.35, 0.65, wet);
   if (edge < 0.01) {
-    float veil = smoothstep(0.15, 0.4, seen); // low threshold also closes one-pixel holes in the veil
+    // Dry pixels scattered inside the veil are noise at this scale: average a ring 3 texels out to close holes up to ~4 px.
+    vec2 d = 3.0 / uSize;
+    float seen = (F.x + field(vUv + vec2(d.x, 0.0)).x + field(vUv - vec2(d.x, 0.0)).x + field(vUv + vec2(0.0, d.y)).x + field(vUv - vec2(0.0, d.y)).x) / 5.0;
+    float veil = smoothstep(0.4, 0.7, seen);
     if (veil < 0.01) discard;
     gl_FragColor = vec4(vec3(0.19), 0.27 * veil);
     return;
   }
+  float conf = smoothstep(0.3, 0.7, sure / wet); // low-confidence water is one solid patch, paler and fainter
   vec3 to = uEye - vW;
   float dist = length(to);
   vec3 v = to / dist;
@@ -108,9 +120,19 @@ void main() {
   float fres = 0.2 + 0.8 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
   vec3 mirror = mix(uHorizon, uSky, clamp(r.z * 1.5, 0.0, 1.0));
   vec3 col = mix(vec3(0.03, 0.28, 0.6) * uAmb, mirror, fres) + vec3(1.0, 0.93, 0.8) * pow(max(dot(r, uSunDir), 0.0), 220.0) * uSun;
-  col = mix(col, vec3(0.2, 0.6, 0.7) * uAmb, (1.0 - smoothstep(0.65, 1.0, wet)) * 0.5); // paler where shallow
+  col = mix(col, vec3(0.2, 0.6, 0.7) * uAmb, max(1.0 - smoothstep(0.65, 1.0, wet), (1.0 - conf) * 0.6) * 0.5); // paler where shallow or unsure
   col = mix(col, uHorizon, smoothstep(4000.0, 12000.0, dist)); // hazes out with the sky
-  gl_FragColor = vec4(col, mix(0.88, 0.97, fres) * edge * mix(0.7, 1.0, smoothstep(0.3, 0.7, sure / wet)));
+  gl_FragColor = vec4(col, mix(0.88, 0.97, fres) * edge * mix(0.6, 1.0, conf));
+  #include <colorspace_fragment>
+}`
+
+// Overlays are one class (alpha > 0), so the "any" channel of field() is their coverage.
+const FLAT = MASK + /* glsl */ `
+uniform vec3 uColor;
+void main() {
+  float a = smoothstep(0.35, 0.65, field(vUv).x);
+  if (a < 0.01) discard;
+  gl_FragColor = vec4(uColor, 0.78 * a);
   #include <colorspace_fragment>
 }`
 
@@ -129,7 +151,31 @@ export async function addWaterLayer(map, corners, root) {
   const scene = new Scene().add(mesh)
   const [camera, inv, eye, loader] = [new Camera(), new Matrix4(), new Vector4(), new TextureLoader()]
   const u = mat.uniforms
-  let [seq, renderer, visible] = [0, null, false]
+  let [renderer, visible] = [null, false]
+  const seqs = new Map()
+  const swap = (uniforms, url, then) => {
+    if (uniforms.uMask.value?.userData.src === url) return then()
+    const mine = (seqs.get(uniforms) ?? 0) + 1
+    seqs.set(uniforms, mine)
+    loader.load(url, (t) => {
+      if (mine !== seqs.get(uniforms) || !map.getStyle()) return t.dispose()
+      Object.assign(t, { flipY: false, generateMipmaps: false, minFilter: NearestFilter, magFilter: NearestFilter, userData: { src: url } })
+      uniforms.uSize.value.set(t.image.width, t.image.height)
+      uniforms.uMask.value?.dispose()
+      uniforms.uMask.value = t
+      then()
+      map.triggerRepaint()
+    })
+  }
+  const overlays = Object.fromEntries(
+    [['coherence', '#B7791F'], ['nisar', '#0E9DB8']].map(([key, hex]) => {
+      const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uEx: u.uEx, uRise: u.uRise } })
+      const o = new Mesh(mesh.geometry, m)
+      Object.assign(o, { frustumCulled: false, visible: false, renderOrder: 1 })
+      scene.add(o)
+      return [key, { mat: m, mesh: o, url: null }]
+    }),
+  )
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
   const timer = setInterval(() => visible && !document.hidden && !reduced.matches && map.triggerRepaint(), 1000 / RIPPLE_FPS)
 
@@ -154,24 +200,21 @@ export async function addWaterLayer(map, corners, root) {
     onRemove: () => {
       clearInterval(timer)
       mesh.geometry.dispose()
-      mat.dispose()
-      u.uMask.value?.dispose()
+      for (const m of [mat, ...Object.values(overlays).map((o) => o.mat)]) {
+        m.uniforms.uMask.value?.dispose()
+        m.dispose()
+      }
     },
   })
 
   return {
-    set(url, rise) {
-      const mine = ++seq
-      loader.load(url, (t) => {
-        if (mine !== seq || !map.getStyle()) return t.dispose()
-        Object.assign(t, { flipY: false, generateMipmaps: false, minFilter: NearestFilter, magFilter: NearestFilter })
-        u.uSize.value.set(t.image.width, t.image.height)
-        u.uMask.value?.dispose()
-        u.uMask.value = t
-        u.uRise.value = rise
-        visible = true
-        map.triggerRepaint()
-      })
+    set: (url, rise) => swap(u, url, () => ((u.uRise.value = rise), (visible = true))),
+    // Evidence overlay (coherence, nisar): same smoothed mask, flat colour, hidden when its source has no pass here.
+    overlay(key, url, on) {
+      const o = overlays[key]
+      o.mesh.visible = !!url && on
+      if (o.mesh.visible && o.url !== url) swap(o.mat.uniforms, (o.url = url), () => {})
+      map.triggerRepaint()
     },
   }
 }

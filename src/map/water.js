@@ -2,7 +2,7 @@
 // extrusions and trees, so roofs and crowns above the surface stay dry and the parts below it read as submerged.
 // Cost: one 32k-vertex mesh, a texture swap per frame, a cheap fragment shader; ripples repaint at RIPPLE_FPS.
 // The surface height is a visual cue (lake stage above its two-year low, see floodRise), not measured depth.
-import { BufferAttribute, Camera, Color, DoubleSide, LinearFilter, Matrix4, Mesh, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector3, Vector4, WebGLRenderer } from 'three'
+import { BufferAttribute, Camera, Color, DoubleSide, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector2, Vector3, Vector4, WebGLRenderer } from 'three'
 import { MercatorCoordinate } from 'maplibre-gl'
 
 const RIPPLE_FPS = 12
@@ -75,15 +75,28 @@ void main() {
 // Mask alpha is the frame's class: 215 flood, 170 low confidence, 70 unknown veil (scripts/flood_summary.py).
 const FRAG = /* glsl */ `
 uniform sampler2D uMask;
+uniform vec2 uSize;
 uniform vec3 uEye, uSky, uHorizon, uSunDir;
 uniform float uTime, uSun, uAmb;
 varying vec3 vW;
 varying vec2 vUv;
 void main() {
-  float a = texture2D(uMask, vUv).a;
-  if (a < 0.05) discard;
-  if (a < 0.4) { if (fwidth(a) > 0.08) discard; gl_FragColor = vec4(vec3(0.19), 0.27); return; } // fwidth: skip the blend ring at water edges
-  float edge = smoothstep(0.4, 0.62, a); // filtered mask: rounded shoreline instead of 10 m blocks
+  // The mask stores the class in alpha, so filtering it would blend classes. Instead take the four nearest texels,
+  // bilinearly weight each class's indicator, and threshold that field: smooth contours, no class mixing.
+  vec2 f = vUv * uSize - 0.5, w = fract(f), c = floor(f);
+  float seen = 0.0, wet = 0.0, sure = 0.0;
+  for (int k = 0; k < 4; k++) {
+    vec2 o = vec2(k & 1, k >> 1);
+    float t = texture2D(uMask, (c + o + 0.5) / uSize).a, wt = (o.x > 0.5 ? w.x : 1.0 - w.x) * (o.y > 0.5 ? w.y : 1.0 - w.y);
+    seen += wt * step(0.05, t); wet += wt * step(0.4, t); sure += wt * step(0.76, t);
+  }
+  float edge = smoothstep(0.35, 0.65, wet);
+  if (edge < 0.01) {
+    float veil = smoothstep(0.15, 0.4, seen); // low threshold also closes one-pixel holes in the veil
+    if (veil < 0.01) discard;
+    gl_FragColor = vec4(vec3(0.19), 0.27 * veil);
+    return;
+  }
   vec3 to = uEye - vW;
   float dist = length(to);
   vec3 v = to / dist;
@@ -95,9 +108,9 @@ void main() {
   float fres = 0.2 + 0.8 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
   vec3 mirror = mix(uHorizon, uSky, clamp(r.z * 1.5, 0.0, 1.0));
   vec3 col = mix(vec3(0.03, 0.28, 0.6) * uAmb, mirror, fres) + vec3(1.0, 0.93, 0.8) * pow(max(dot(r, uSunDir), 0.0), 220.0) * uSun;
-  col = mix(col, vec3(0.2, 0.6, 0.7) * uAmb, (1.0 - smoothstep(0.62, 0.84, a)) * 0.5); // paler where shallow
+  col = mix(col, vec3(0.2, 0.6, 0.7) * uAmb, (1.0 - smoothstep(0.65, 1.0, wet)) * 0.5); // paler where shallow
   col = mix(col, uHorizon, smoothstep(4000.0, 12000.0, dist)); // hazes out with the sky
-  gl_FragColor = vec4(col, mix(0.88, 0.97, fres) * edge * (a > 0.76 ? 1.0 : 0.7));
+  gl_FragColor = vec4(col, mix(0.88, 0.97, fres) * edge * mix(0.7, 1.0, smoothstep(0.3, 0.7, sure / wet)));
   #include <colorspace_fragment>
 }`
 
@@ -110,7 +123,7 @@ export async function addWaterLayer(map, corners, root) {
   const origin = MercatorCoordinate.fromLngLat(map.getCenter(), 0)
   const s = origin.meterInMercatorCoordinateUnits()
   const toLocal = new Matrix4().makeTranslation(origin.x, origin.y, 0).scale(new Vector3(s, -s, s))
-  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uRise: { value: 0.5 } } })
+  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uRise: { value: 0.5 } } })
   const mesh = new Mesh(surface(dem, nw, se, origin, s), mat)
   mesh.frustumCulled = false
   const scene = new Scene().add(mesh)
@@ -151,7 +164,8 @@ export async function addWaterLayer(map, corners, root) {
       const mine = ++seq
       loader.load(url, (t) => {
         if (mine !== seq || !map.getStyle()) return t.dispose()
-        Object.assign(t, { flipY: false, generateMipmaps: false, minFilter: LinearFilter, magFilter: LinearFilter })
+        Object.assign(t, { flipY: false, generateMipmaps: false, minFilter: NearestFilter, magFilter: NearestFilter })
+        u.uSize.value.set(t.image.width, t.image.height)
         u.uMask.value?.dispose()
         u.uMask.value = t
         u.uRise.value = rise

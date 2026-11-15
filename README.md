@@ -1,6 +1,34 @@
-# masaSARap
+# MATA: Tanaw
 
-React and Vite starter with Tailwind CSS, GSAP, and React Router.
+**Mapping A Typhoon Aftermath: Tracking Affected Neighborhoods Across Waters**
+
+MATA: Tanaw is an interactive satellite-radar replay for exploring possible floodwater around Laguna de Bay, Philippines. It brings observations together at barangay level to support conversations about drainage, evacuation and recovery.
+
+Built by Team Masasarap for the 2026 NASA Space Apps Challenge, [Dancing with the SARs](https://www.spaceappschallenge.org/2026/challenges/dancing-with-the-sars/).
+
+## What it shows
+
+- A 3D map of Laguna's 30 municipalities and 682 barangays, with searchable boundaries, terrain and building context.
+- A replay of 136 Sentinel-1 passes from November 2024 to November 2026 for Bay, Pila, Santa Cruz and Victoria. Observations are irregular, not daily.
+- Per-barangay flood signals and secondary evidence from NASA OPERA DSWx-S1, ASF HyP3 coherence and NASA–ISRO NISAR where available.
+- Laguna de Bay water-level observations from DAHITI, shown as context.
+
+**Not an official hazard map.** Flood indications are preliminary and are not ground-validated. Radar can miss water beneath buildings or vegetation, and agricultural water can resemble flooding. Missing coverage is unknown, not dry. Duration estimates, exposure indices and resident photo validation are not yet available.
+
+## How it works
+
+Python processing scripts compare Sentinel-1 radar observations with dry-season and seasonal historical references, apply terrain and land-cover masks, and prepare map overlays and barangay summaries. OPERA water classifications, coherence loss and NISAR radar darkening provide additional evidence with their own coverage and limitations. The browser loads the resulting static assets; it does not run the satellite processing pipeline.
+
+## Tech stack
+
+- React, Vite and Tailwind CSS for the web interface.
+- MapLibre GL JS and Three.js for the interactive map and 3D layers.
+- Python, NumPy, SciPy, Rasterio and Shapely for geospatial processing.
+- Remotion for the demo video.
+
+## Run locally
+
+Requirements: Node.js and npm.
 
 ```sh
 npm install
@@ -9,7 +37,6 @@ npm run dev
 
 Open the local URL printed by Vite. `npm run build` creates the production build; `npm run preview` serves it locally.
 
-The map opens on Bay; zooming out is limited to the Laguna overview. Select a municipality pin or use the flood observations picker to open its records. The picker lists only municipalities present in the published flood index; missing observations are unknown, not dry. The About and Sources controls explain the project and its data limits.
 ## Data, references and licenses
 
 The main sources include Copernicus Sentinel-1, NASA OPERA DSWx-S1, NASA–ISRO NISAR, ASF HyP3, Copernicus DEM GLO-30, ESA WorldCover, EOX Sentinel-2 cloudless, OpenStreetMap, OCHA COD-AB and DAHITI. See [project references](public/references.txt) for sources, tools, research and demo-video credits, and [data provenance](public/data/PROVENANCE.md) for versions, transformations and limitations.

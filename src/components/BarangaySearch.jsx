@@ -35,7 +35,9 @@ export default function BarangaySearch({ list, municipalities, disabled, onSelec
   const all = useMemo(() => search(index, q), [index, q])
   const hits = all.slice(0, MAX_SHOWN)
   const showList = open && q.trim() !== ''
-  useEffect(() => activeEl.current?.scrollIntoView({ block: 'nearest' }), [active, showList])
+  useEffect(() => {
+    activeEl.current?.scrollIntoView({ block: 'nearest' })
+  }, [active, showList])
   const choose = (e) => {
     if (e.kind === 'municipality') onMunicipality(e.ref)
     else onSelect(e.ref.psgc, true)

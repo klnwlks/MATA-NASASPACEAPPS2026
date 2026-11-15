@@ -6,12 +6,16 @@ Durations come only from observed passes: for a run of flooded passes,
   min days = last flooded - first flooded (the observed span)
   max days = first none-seen after - last none-seen before (null when the run touches either end of the record).
 Sources differ in confidence; every run lists the sources that saw it.
+Adds state, seenBy and episodes to every barangay record of every <munipsgc>/manifest.json, and writes
+public/data/floods/states.json: {<psgc>: "<one char per frame>"}, 1 flooded, 0 none seen, - unknown, in index.json frame order.
 Run after evidence.py: .venv/bin/python scripts/combine.py
 """
 import json
 from datetime import datetime
 
-MANIFEST = "public/data/floods/manifest.json"
+from common import FLOODS
+
+CHAR = {1: "1", 0: "0", -1: "-"}
 
 
 def day(iso):
@@ -38,21 +42,28 @@ def runs(state, seen_by, dates):
 
 
 def main():
-    m = json.load(open(MANIFEST))
-    dates = [f["utc"] for f in m["frames"]]
-    for rec in m["barangays"].values():
-        votes = {"openWater": [None if s == -1 else s for s in rec["openWaterState"]], **{k: v["flagged"] for k, v in rec["evidence"].items()}}
-        state, seen_by = [], []
-        for i in range(len(dates)):
-            hit = [k for k, v in votes.items() if v[i] == 1]
-            looked = any(v[i] is not None for v in votes.values())
-            state.append(1 if hit else 0 if looked else -1)
-            seen_by.append(hit)
-        rec["state"], rec["seenBy"], rec["episodes"] = state, seen_by, runs(state, seen_by, dates)
-    m["method"]["combined"] = "flooded if any source flags the pass; none seen only if a source looked and none flagged; runs list their sources"
-    json.dump(m, open(MANIFEST, "w"), separators=(",", ":"))
-    for rec in m["barangays"].values():
-        print(rec["name"][:14].ljust(14), [(e["first"][:10], e["last"][:10], e["minDays"], e["maxDays"], "+".join(e["seenBy"])) for e in rec["episodes"]][:6])
+    index = json.load(open(f"{FLOODS}/index.json"))
+    dates = [f["utc"] for f in index["frames"]]
+    states, episodes = {}, 0
+    for info in index["municipalities"].values():
+        path = f"{FLOODS}/{info['manifest']}"
+        m = json.load(open(path))
+        for psgc, rec in m["barangays"].items():
+            votes = {"openWater": [None if s == -1 else s for s in rec["openWaterState"]], **{k: v["flagged"] for k, v in rec.get("evidence", {}).items()}}
+            state, seen_by = [], []
+            for i in range(len(dates)):
+                hit = [k for k, v in votes.items() if v[i] == 1]
+                looked = any(v[i] is not None for v in votes.values())
+                state.append(1 if hit else 0 if looked else -1)
+                seen_by.append(hit)
+            rec["state"], rec["seenBy"], rec["episodes"] = state, seen_by, runs(state, seen_by, dates)
+            states[psgc] = "".join(CHAR[s] for s in state)
+            episodes += len(rec["episodes"])
+        json.dump(m, open(path, "w"), separators=(",", ":"))
+    index["method"]["combined"] = "flooded if any source flags the pass; none seen only if a source looked and none flagged; runs list their sources"
+    json.dump(index, open(f"{FLOODS}/index.json", "w"), separators=(",", ":"))
+    json.dump(states, open(f"{FLOODS}/states.json", "w"), separators=(",", ":"))
+    print(len(states), "barangays,", len(dates), "frames,", episodes, "flooded runs;", sum(s.count("1") for s in states.values()), "flooded barangay-passes")
 
 
 if __name__ == "__main__":

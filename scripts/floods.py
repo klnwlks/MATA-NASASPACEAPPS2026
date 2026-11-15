@@ -1,74 +1,120 @@
-"""Classify every Sentinel-1 acquisition over Bay on both tracks into dry / water / flood, per 10 m pixel.
+"""Classify every Sentinel-1 acquisition over Laguna province on both tracks into dry / water / flood, per 10 m pixel.
 
-Inputs (all streamed as small windows, nothing large lands on disk):
-  - Planetary Computer `sentinel-1-rtc` (gamma0, terrain corrected with GLO-30), VV only, 2024-11-15 to 2026-11-15:
-    descending track 32 (S1A until 2026-06, S1C from 2025-07, S1D from 2026-04: 12-day, then mostly 6-day revisit)
-    and ascending track 142 (S1C from 2025-04, S1D in 2026: 12-day).
-  - history.py: per-pixel, per-month median and spread of the same track over the four years before the window.
-  - Copernicus Data Space catalogue: the full list of acquisitions, so dates acquired but absent from the
-    RTC collection are recorded as missing rather than silently dropped.
-  - Copernicus GLO-30 (slope mask) and ESA WorldCover 2021 (cropland and wetland; low confidence unless lake-connected).
-Method: a pixel floods when it is water on this pass (per-pass Otsu threshold) and either connected to the lake and 3 dB
-darker than the dry season, or unusually dark for its track and
-calendar month over the four-year history (z <= Z_THR). Each track keeps its own references, so viewing geometries
-never mix. The same classification is repeated with looser and stricter thresholds to give hectare ranges.
-Run after boundaries.py and history.py: .venv/bin/python scripts/floods.py [track ...]
-Output: /tmp/mata-floods/classes.npz (uint8 class stack + grid, bit-packed loose/strict flood masks), read by flood_summary.py.
+Inputs (streamed as row blocks, nothing large lands on disk except the caches below):
+  - Planetary Computer `sentinel-1-rtc` (gamma0, terrain corrected with GLO-30), VV only, 2024-11-15 to 2026-11-15, descending
+    track 32 and ascending track 142. Adjacent scene slices are mosaicked for each track and date.
+  - A per-pixel dry-season median from February–April passes in the same replay window and track.
+  - Copernicus Data Space catalogue: the list of acquisitions, so dates acquired but absent from the RTC collection are
+    recorded as missing (`acquired` in grid.npz) rather than silently dropped.
+  - Copernicus GLO-30 (slope mask; four 1-degree tiles N13/N14 x E120/E121, each warped and fmax-combined) and ESA WorldCover
+    2021 tile N12E120 (cropland and wetland low confidence unless lake-connected; tree cover and built-up radar-blind).
+Method: water is below the per-pass Otsu threshold. A flood candidate is water outside permanent water, at least 3 dB
+darker than the dry-season median and on slopes under 5 degrees. Isolated cropland or wetland water is low confidence.
+The classification is repeated with looser and stricter thresholds for hectare ranges. The four-year seasonal baseline
+is deferred, so seasonal agricultural changes may be misclassified as flood. This implementation is specific to Laguna;
+its permanent-water connectivity must not be reused as a generic river connectivity model for other provinces.
+
+Phase A, per track: stream every Feb-Apr pass of the window, per-pass Otsu threshold, running count for `permanent` (at least
+80 % of the dry passes below their threshold), `ref` = per-pixel median over the dry passes, lake = largest permanent
+component. Written as soon as a track finishes: CACHE/ref_<track>.npy (float16 dB) and the keys permanent_<track>,
+lake_<track>, lake (union of the lakes so far) in grid.npz. Resumable per dry pass (CACHE/dry_<track>/, deleted when done).
+Phase B, every pass in time order (both tracks interleaved, scenes prefetched in a thread pool): the dry-season change rule
+for base / LOOSE / STRICT, the class raster to CACHE/cls/<YYYYMMDD>_<track>.npz, and per-barangay
+numbers accumulated into CACHE/stats.npz. A pass whose cls file exists is skipped (its numbers are re-read from that file).
+
+Files written (CACHE = common.CACHE, atomically via rename):
+  grid.npz   transform (6), shape, psgc (barangay order), dates (UTC iso, all RTC passes), platforms, tracks, thresholds (nan until
+             classified), dry_season (UTC iso of the Feb-Apr passes), acquired ("YYYYMMDD:platform:track"), then per track
+             permanent_<track> and lake_<track>, and lake: np.packbits of the flattened (H, W) bool raster.
+  cls/<YYYYMMDD>_<track>.npz   c: uint8 (H, W) class raster (see common.py); also this pass's rows high, low, visible, strict,
+             loose (n_barangays + 1, column 0 = outside any barangay), thr, utc, platform.
+  stats.npz  high, low, strict, loose (hectares: FLOOD pixels / FLOOD_LOW pixels / flood minus low confidence under the strict and
+             loose rules), visible (share of the barangay's pixels that are neither NODATA nor BLIND), each (passes, n_barangays + 1);
+             dates (UTC iso), platforms, tracks, thresholds. Passes are sorted by UTC time.
+  S1CORE_STATUS.txt  progress and ETA.
+Run: .venv/bin/python scripts/floods.py [track ...]. No historical normalization is required.
 """
-import json, os, sys, time, urllib.parse, urllib.request
+import json, os, shutil, sys, threading, time, urllib.parse, urllib.request
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 import numpy as np, rasterio
-from rasterio.transform import from_origin
+from rasterio.transform import Affine
 from rasterio.warp import reproject, Resampling, transform_bounds
-from rasterio.windows import from_bounds
+from rasterio.windows import Window, from_bounds
 from scipy.ndimage import gaussian_filter, label, uniform_filter
 
-os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "EMPTY_DIR"
-os.environ["GDAL_HTTP_MAX_RETRY"] = "5"
-START, END = "2024-11-15", "2026-11-15"
-TRACKS = {32: "descending", 142: "ascending"}
+from common import CACHE, PROVINCE, START, END, TRACKS, PX, NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW, BLIND, barangay_raster, features, grid, px_ha
+
+os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
+os.environ.setdefault("GDAL_HTTP_MAX_RETRY", "5")
+os.environ.setdefault("GDAL_HTTP_RETRY_DELAY", "2")
+os.environ.setdefault("GDAL_CACHEMAX", "200")  # MB, shared by all reader threads (default is 5 % of RAM)
 PC = "https://planetarycomputer.microsoft.com/api"
 CDSE = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products?"
-DEM = "/vsicurl/https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N14_00_E121_00_DEM/Copernicus_DSM_COG_10_N14_00_E121_00_DEM.tif"
+DEM_TILES = [f"/vsicurl/https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N{la}_00_E{lo}_00_DEM/Copernicus_DSM_COG_10_N{la}_00_E{lo}_00_DEM.tif"
+             for la in (13, 14) for lo in (120, 121)]
 WC = "/vsicurl/https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N12E120_Map.tif"
-OUT = "/tmp/mata-floods"
-BUFFER_DEG, PX = 0.01, 10.31  # Web Mercator metres per pixel, about 10 m on the ground at 14.1 N
 Z_THR, DROP_DB, MAX_SLOPE_DEG, PERMANENT_SHARE = -2.0, 3.0, 5.0, 0.8
 # Sensitivity for hectare ranges: (water threshold shift dB, z threshold, dry-season drop dB) for loose and strict.
-LOOSE, STRICT = (1.0, -1.5, 2.0), (-1.0, -2.5, 4.0)
+BASE, LOOSE, STRICT = (0.0, Z_THR, DROP_DB), (1.0, -1.5, 2.0), (-1.0, -2.5, 4.0)
 DEM_SMOOTH_PX = 6  # about 60 m, as in terrain.py
-# Classes. Low-confidence water: cropland or wetland not connected to the lake, where paddies look like water outside any flood.
-# Radar-blind: built-up or tree cover, where C-band sees walls and canopy, not the water around them (unknown, never dry).
-NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW, BLIND = 0, 1, 2, 3, 4, 5
+ACQUIRED_POINT = (121.32, 14.28)  # province centre, for the CDSE catalogue
+# History is stored as uint8: median at Q_STEP dB from Q_MIN (255 = no data), sigma at SIG_STEP dB (clip 12.7 dB, 255 = no data).
+Q_MIN, Q_STEP, Q_NONE, SIG_STEP = -40.0, 0.2, 255, 0.05
+ROWS, PAD = 500, 3  # row block of a streamed scene, and the pad of the 5 x 5 boxcar
+CHUNK = 256  # rows per working chunk in the per-pass arithmetic
+PREFETCH = int(os.environ.get("S1_PREFETCH", 3))  # scenes in flight or waiting, each about 100 MB as float16
 
 
-def get(url, data=None):
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"} if data else {})
-    with urllib.request.urlopen(req, timeout=120) as r:
-        return json.loads(r.read())
-
-
-def grid():
-    xs, ys = [], []
-    for f in json.load(open("public/data/barangays.geojson"))["features"]:
-        for ring in (f["geometry"]["coordinates"] if f["geometry"]["type"] == "Polygon" else [r for p in f["geometry"]["coordinates"] for r in p]):
-            xs += [c[0] for c in ring]; ys += [c[1] for c in ring]
-    w, s, e, n = transform_bounds("EPSG:4326", "EPSG:3857", min(xs) - BUFFER_DEG, min(ys) - BUFFER_DEG, max(xs) + BUFFER_DEG, max(ys) + BUFFER_DEG)
-    return from_origin(w, n, PX, PX), (int((n - s) / PX), int((e - w) / PX))
-
-
-def warp(src_path, transform, shape, resampling=Resampling.bilinear, dtype="float32", tries=5):
-    # Hour-long streams of hundreds of windows meet DNS blips and dropped connections; one must not end the run.
+def get(url, data=None, tries=6):
     for attempt in range(tries):
         try:
-            return _warp(src_path, transform, shape, resampling, dtype)
-        except rasterio.errors.RasterioIOError:
+            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"} if data else {})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return json.loads(r.read())
+        except OSError:
             if attempt == tries - 1:
                 raise
             time.sleep(10 * (attempt + 1))
 
 
-def _warp(src_path, transform, shape, resampling, dtype):
+class Sas:
+    """Planetary Computer SAS token, refreshed 15 minutes before it expires, shared by all threads."""
+    def __init__(self):
+        self.lock, self.token, self.until = threading.Lock(), None, 0.0
+
+    def __call__(self):
+        with self.lock:
+            if time.time() >= self.until:
+                r = get(f"{PC}/sas/v1/token/sentinel-1-rtc")
+                self.token = r["token"]
+                exp = r.get("msft:expiry")
+                self.until = (datetime.fromisoformat(exp.replace("Z", "+00:00")).timestamp() if exp else time.time() + 3000) - 900
+            return self.token
+
+
+def province_bbox(T, shape):
+    return transform_bounds("EPSG:3857", "EPSG:4326", T.c, T.f - shape[0] * PX, T.c + shape[1] * PX, T.f)
+
+
+def rtc_items(track, direction, start, end, bbox):
+    """Group adjacent RTC slices from the same track and date into one observation."""
+    body = {"collections": ["sentinel-1-rtc"], "datetime": f"{start}T00:00:00Z/{end}T23:59:59Z", "limit": 1000, "bbox": list(bbox),
+            "query": {"sat:relative_orbit": {"eq": track}, "sat:orbit_state": {"eq": direction}}}
+    items = sorted(get(f"{PC}/stac/v1/search", json.dumps(body).encode())["features"], key=lambda f: f["properties"]["datetime"])
+    groups = []
+    for item in items:
+        day = item["properties"]["datetime"][:10]
+        if not groups or groups[-1]["properties"]["datetime"][:10] != day:
+            groups.append({**item, "slices": [item]})
+        else:
+            groups[-1]["slices"].append(item)
+    return groups
+
+
+def _warp(src, Tb, shape, resampling=Resampling.bilinear, dtype="float32"):
+    """Warp the part of an open raster covering (Tb, shape) in EPSG:3857 onto that window."""
     dst = np.full(shape, np.nan if dtype == "float32" else 0, dtype)
     with rasterio.open(src_path) as src:
         b = transform_bounds("EPSG:3857", src.crs, transform.c, transform.f - shape[0] * PX, transform.c + shape[1] * PX, transform.f)

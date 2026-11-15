@@ -119,7 +119,7 @@ export default function App() {
         <MapStage barangays={barangays} floods={floods} manifest={manifests[focusId]?.data ?? null} focus={focus} frame={frame} selectedId={selectedId} show={show} fit={fit} homeTick={homeTick} time={time} onSelect={select} onMunicipality={openMunicipality} onProvince={(p) => { setProvince(p); setSelectedId(null); setMunicipality(null) }} onCenter={setFocusId} onStatus={report} onMap={setMap} />
         <Navbar list={barangays?.list ?? []} municipalities={barangays?.municipalities ?? []} frames={floods?.frames.length} boundariesReady={!!barangays} onSelect={select} onMunicipality={openMunicipality} />
         <Status status={status} />
-        <label className="pointer-events-auto absolute left-3 top-20 z-10 rounded-xl bg-chalk p-2 shadow-float">
+        <label className="pointer-events-auto absolute left-[4.75rem] top-20 z-10 rounded-xl bg-chalk p-2 shadow-float md:left-3">
           <span className="sr-only">Select a province</span>
           <select aria-label="Select a province" value={province?.code ?? ''} onChange={(e) => { setProvince(provinces.find((p) => p.code === e.target.value) ?? null); setSelectedId(null); setMunicipality(null) }} className="max-w-52 rounded-lg bg-chalk px-2 py-1 text-sm text-ink">
             <option value="">Select a province</option>
@@ -127,7 +127,7 @@ export default function App() {
           </select>
           {floods?.coverageNote && <span className="block px-2 text-xs text-muted">{floods.coverageNote}</span>}
         </label>
-        {province && <aside aria-label={`${province.name} province`} className="pointer-events-auto absolute right-3 top-20 z-10 w-72 rounded-2xl bg-chalk p-4 shadow-float">
+        {province && <aside aria-label={`${province.name} province`} className="pointer-events-auto absolute inset-x-3 bottom-24 z-10 rounded-2xl bg-chalk p-4 shadow-float md:inset-x-auto md:bottom-auto md:right-3 md:top-20 md:w-72">
           <button type="button" onClick={() => setProvince(null)} aria-label="Close province details" className="float-right rounded-lg px-2 py-1 text-sm text-muted hover:bg-cobalt-tint">Close</button>
           <h2 className="text-xl font-medium">{province.name}</h2>
           <p className="mt-1 text-sm text-muted">{province.region} · {province.code}</p>

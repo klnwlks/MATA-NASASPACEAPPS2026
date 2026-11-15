@@ -6,6 +6,7 @@
 - `provinces/<pcode>/barangays.geojson`: the same COD-AB release, `phl_admin4`, extracted by `scripts/priority_boundaries.py` for Cagayan, Agusan del Norte, Pangasinan, Pampanga and Laguna; geometry simplified at 0.00001 degrees.
 - Priority selection uses river and coastal flood exposure in the 2025 WorldRiskReport as [reported by GMA News](https://www.gmanetwork.com/news/topstories/nation/960359/philippines-most-disaster-prone-country-2025/story/). The first four are its four highest-exposure provinces; Laguna is retained from the original project scope. This is exposure, not a ranking of observed floods during the replay window.
 - The current run uses only Sentinel-1 observations and dry-season references within 2024-11-15 to 2026-11-15. Four-year seasonal normalization and second opinions are deferred. The national replay is not yet published.
+- Early Bay preview (`floods/index.json`, `states.json`, `0403402000/`): `scripts/publish_bay_primary.py` reads the existing `/tmp/mata-floods/classes_old.npz` and `manifest_old.json` from the earlier Bay run. The 84 track-32 Sentinel-1 observations span 2024-11-19 to 2026-10-29. The preview uses only the original open-water states and the replay-window February–April dry-season reference; it omits second opinions, duration estimates and unavailable sensitivity ranges. All other barangays have no preview record and remain unknown.
 
 ## Existing Bay replay
 

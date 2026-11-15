@@ -27,6 +27,9 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
     const protocol = new Protocol()
     addProtocol('pmtiles', protocol.tile)
     let map
+    // A 2x screen costs 4x the fragments of 1x for little visible gain under terrain, haze and 3D; 1.5x keeps text crisp.
+    // MSAA only pays off at 1x: above that the extra pixels already smooth the edges.
+    const pixelRatio = Math.min(window.devicePixelRatio, 1.5)
     try {
       map = new Map({
         container: el.current,
@@ -34,9 +37,10 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
         center: [121.25, 14.14],
         zoom: 11,
         ...HOME_VIEW,
-        maxPitch: 80,
+        maxPitch: 70, // HOME_VIEW sits at 62; steeper views pull in many far tiles for a strip of horizon
         attributionControl: false,
-        canvasContextAttributes: { antialias: true },
+        pixelRatio,
+        canvasContextAttributes: { antialias: pixelRatio <= 1 },
       })
     } catch {
       removeProtocol('pmtiles')

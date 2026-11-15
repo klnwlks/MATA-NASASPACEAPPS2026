@@ -22,7 +22,7 @@ FLOOR_HA, NOISE_FACTOR = 2.0, 3.0  # same rule as flood_summary.py
 OPERA_WATER, OPERA_VEG, OPERA_FILL = 1, 3, 255
 PERMANENT = 2
 NISAR_DAYS, NISAR_LOW_LAKE_UNTIL, HV_DROP_DB, INLAND_M = 6, "2026-07-31", -3.0, 2000  # DAHITI: lake 1.1-1.2 m until late July 2026
-COH_DROP, BUILT = -0.2, 50  # coherence lost against the dry-season median; WorldCover built-up class
+COH_DROP, BUILT, MIN_REF = -0.2, 50, 3  # coherence lost against same-baseline dry-season median; WorldCover built-up; reference pairs needed
 AMBER, CYAN = (183, 121, 31, 200), (14, 157, 184, 200)  # design status amber; flood cyan
 
 
@@ -103,28 +103,37 @@ def nisar(frames, ids, px_ha, permanent):
     return out
 
 
+def gap_class(ref, sec):
+    """Temporal baseline of a pair in days, with 5-7 day pairs pooled as 6: coherence decays with the gap between
+    passes, so a pair is only ever compared with dry-season pairs of the same gap."""
+    days = (datetime.strptime(sec[:8], "%Y%m%d") - datetime.strptime(ref[:8], "%Y%m%d")).days
+    return 6 if 5 <= days <= 7 else days
+
+
 def coherence(frames, ids, px_ha, permanent, built):
-    """Built-up pixels whose coherence fell COH_DROP below their dry-season median, judged against the same loss
-    on built-up land more than 2 km from the lake in the same pair (rain and season move both alike)."""
+    """Built-up pixels whose coherence fell COH_DROP below the dry-season median of pairs with the same baseline,
+    judged against the same loss on built-up land more than 2 km from the lake in the same pair (rain and season
+    move both alike). A pair whose baseline has fewer than MIN_REF dry-season pairs gets no verdict."""
     z = np.load(f"{TMP}/coherence.npz")
     coh, ref, sec = z["coh"].astype("float32"), [str(r) for r in z["reference"]], [str(s) for s in z["secondary"]]
+    gaps = [gap_class(r, s) for r, s in zip(ref, sec)]
     dry = [i for i in range(len(ref)) if ref[i][4:6] in ("02", "03", "04") and sec[i][4:6] in ("02", "03", "04")]
-    base = np.nanmedian(coh[dry], 0)
+    base = {g: np.nanmedian(coh[[i for i in dry if gaps[i] == g]], 0) for g in set(gaps) if sum(gaps[i] == g for i in dry) >= MIN_REF}
     control = inland_mask(ids, permanent, px_ha) & built
     by_date = {s[:8]: i for i, s in enumerate(sec)}
     out = {b: {"flagged": [None] * len(frames), "detail": [None] * len(frames)} for b in np.unique(ids[ids > 0]).tolist()}
     for fi, f in enumerate(frames):
         i = by_date.get(f["utc"][:10].replace("-", ""))
-        if i is None:
+        if i is None or gaps[i] not in base:
             continue
-        lost = (coh[i] - base <= COH_DROP) & built
+        lost = (coh[i] - base[gaps[i]] <= COH_DROP) & built
         rate = lost[control].mean()
         f["coherenceFile"] = overlay(f"coherence/{f['utc'][:10]}.png", lost & (ids > 0), AMBER)
         for b in out:
             sel = (ids == b) & built
             ha = float(lost[sel].sum() * px_ha)
             out[b]["flagged"][fi] = int(ha >= max(FLOOR_HA, NOISE_FACTOR * rate * sel.sum() * px_ha)) if sel.any() else None
-            out[b]["detail"][fi] = f"{ha:.1f} of {sel.sum() * px_ha:.0f} ha built-up lost coherence · pair from {ref[i][:4]}-{ref[i][4:6]}-{ref[i][6:8]}"
+            out[b]["detail"][fi] = f"{ha:.1f} of {sel.sum() * px_ha:.0f} ha built-up lost coherence · {gaps[i]}-day pair from {ref[i][:4]}-{ref[i][4:6]}-{ref[i][6:8]}"
     return out
 
 

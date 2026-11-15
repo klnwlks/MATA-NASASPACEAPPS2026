@@ -52,7 +52,7 @@ export default function AboutDialog({ onClose, floods }) {
 
         <p className="mt-4 text-sm leading-relaxed text-muted">
           Code developed with AI assistance.{' '}
-          <a href="https://github.com/klnwlks/nasaspaceapps2026" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-cobalt underline-offset-2 hover:underline">
+          <a href="https://github.com/klnwlks/MATA-NASASPACEAPPS2026" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-cobalt underline-offset-2 hover:underline">
             View source on GitHub <ExternalLink aria-hidden size={13} />
           </a>
         </p>

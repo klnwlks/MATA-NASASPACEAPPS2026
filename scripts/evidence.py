@@ -147,12 +147,12 @@ def nisar(c):
         for fi, n in enumerate(near):
             if n is None:
                 continue
-            day = utc[n[1]][:10].replace("-", "")
+            day = str(z["key"][n[1]])  # acquisition key, YYYYMMDDTHHMM_<track>: two tracks can share a date
             rel = f"{m}/nisar/{day}.png"
             if (m, day) not in done:
                 if mask is None:
                     mask = c.mask(m)
-                packed = np.load(f"{EV}/nisar_mask/{utc[n[1]][:10]}.npz")["m"]
+                packed = np.load(f"{EV}/nisar_mask/{day}.npz")["m"]
                 full = np.unpackbits(packed)[: c.shape[0] * c.shape[1]].reshape(c.shape)
                 r0, r1, c0, c1 = crop
                 dark_m = full[r0:r1, c0:c1].astype(bool) & mask

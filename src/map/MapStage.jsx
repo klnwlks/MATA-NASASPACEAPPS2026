@@ -23,10 +23,13 @@ const dur = (ms) => (reduceMotion() ? 0 : ms)
 const WATER_ZOOM = 11
 const TREES_ZOOM = 13
 const gate = (on, zoom, at) => (on ? zoom >= at - 0.5 : zoom >= at)
-const PIN_BASE = 'grid place-items-center rounded-full border-2 shadow-float'
-function stylePin(pin, name, mapped) {
-  pin.className = mapped ? `${PIN_BASE} size-10 border-white bg-[#D92D20] text-white ring-4 ring-[#D92D20]/30 hover:bg-[#B42318]` : `${PIN_BASE} size-8 border-line bg-chalk text-muted hover:text-ink`
-  pin.setAttribute('aria-label', mapped ? `${name}, municipality: observed flood runs` : `${name}, municipality: no observations loaded`)
+const PIN_CLASS = 'grid place-items-center rounded-full border-2 shadow-float size-10 border-white bg-[#D92D20] text-white ring-4 ring-[#D92D20]/30 hover:bg-[#B42318]'
+// Only municipalities with observed flood runs get a pin; it also gives way to the barangays at PIN_ZOOM.
+function stylePin(pin, name, mapped, zoom) {
+  pin.className = PIN_CLASS
+  pin.dataset.mapped = mapped ? '1' : ''
+  pin.setAttribute('aria-label', `${name}, municipality: observed flood runs`)
+  pin.style.display = mapped && zoom >= 8 && zoom < PIN_ZOOM ? '' : 'none'
 }
 
 export default function MapStage({ barangays, floods, manifest, focus, focusPsgc, frame, selectedId, selectedMunicipalityId, show, fit, homeTick, time, onSelect, onMunicipality, onCenter, onStatus, onMap }) {
@@ -111,7 +114,7 @@ export default function MapStage({ barangays, floods, manifest, focus, focusPsgc
         const next = { water: gate(s.water, z, WATER_ZOOM), trees: gate(s.trees, z, TREES_ZOOM) }
         return next.water === s.water && next.trees === s.trees ? s : next
       })
-      for (const pin of pins.current) pin.style.display = z < 8 || z >= PIN_ZOOM ? 'none' : ''
+      for (const pin of pins.current) pin.style.display = pin.dataset.mapped && z >= 8 && z < PIN_ZOOM ? '' : 'none'
       if (z < WATER_ZOOM || !map.getLayer('bgy-fill')) return
       const c = map.project(map.getCenter())
       const hit = map.queryRenderedFeatures(c, { layers: ['bgy-fill'] })[0]
@@ -145,9 +148,8 @@ export default function MapStage({ barangays, floods, manifest, focus, focusPsgc
       pins.current = barangays.municipalities.map((m) => {
         const pin = document.createElement('button')
         pin.type = 'button'
-        pin.style.display = map.getZoom() < 8 || map.getZoom() >= PIN_ZOOM ? 'none' : ''
         pin.dataset.psgc = m.psgc
-        stylePin(pin, m.name, !!live.current.floods?.municipalities[m.psgc])
+        stylePin(pin, m.name, !!live.current.floods?.municipalities[m.psgc], map.getZoom())
         pin.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>'
         // Keep the map from turning pin presses into a barangay click underneath.
         for (const type of ['mousedown', 'mouseup', 'touchstart', 'touchend', 'dblclick']) pin.addEventListener(type, (e) => e.stopPropagation())
@@ -161,10 +163,11 @@ export default function MapStage({ barangays, floods, manifest, focus, focusPsgc
     })
   }, [barangays])
 
-  // Pins with published flood records stand out; the rest are plain reference markers. Floods may arrive after the pins.
+  // Only municipalities with published flood records keep a pin. Floods may arrive after the pins.
   useEffect(() => {
     if (!floods) return
-    for (const pin of pins.current) stylePin(pin, barangays?.municipalities.find((m) => m.psgc === pin.dataset.psgc)?.name ?? '', !!floods.municipalities[pin.dataset.psgc])
+    const z = mapRef.current?.getZoom() ?? 0
+    for (const pin of pins.current) stylePin(pin, barangays?.municipalities.find((m) => m.psgc === pin.dataset.psgc)?.name ?? '', !!floods.municipalities[pin.dataset.psgc], z)
   }, [floods, barangays])
 
   useEffect(() => {

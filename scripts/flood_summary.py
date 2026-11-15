@@ -18,6 +18,7 @@ Run after floods.py (any number of finished passes), then combine.py --primary-o
 import json, os, time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import numpy as np
 from PIL import Image
 from rasterio.features import rasterize
@@ -42,7 +43,7 @@ TRACK_TEXT = {"32": "Sentinel-1 descending relative orbit 32, about 05:47 Philip
 
 
 def day(iso):
-    return datetime.fromisoformat(iso[:10])
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(ZoneInfo("Asia/Manila")).date()
 
 
 def utc(d):

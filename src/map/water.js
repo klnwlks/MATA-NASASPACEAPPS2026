@@ -175,7 +175,7 @@ export async function addWaterLayer(map, corners, root) {
   const scene = new Scene().add(mesh)
   const [camera, inv, eye, loader] = [new Camera(), new Matrix4(), new Vector4(), new TextureLoader()]
   const u = mat.uniforms
-  let [renderer, visible] = [null, false]
+  let [renderer, visible, blank] = [null, false, false] // blank: this municipality has no image for the shown frame
   const seqs = new Map()
   const swap = (uniforms, url, then) => {
     if (uniforms.uMask.value?.userData.src === url) return then()
@@ -220,7 +220,7 @@ export async function addWaterLayer(map, corners, root) {
       renderer.autoClear = false
     },
     render: (_, args) => {
-      if (!u.uMask.value) return
+      if (!u.uMask.value || blank) return
       camera.projectionMatrix.fromArray(args.defaultProjectionData.mainMatrix).multiply(toLocal)
       eye.set(0, 0, 1, 0).applyMatrix4(inv.copy(camera.projectionMatrix).invert()) // the eye is where w = 0
       u.uEye.value.set(eye.x / eye.w, eye.y / eye.w, eye.z / eye.w)
@@ -244,7 +244,11 @@ export async function addWaterLayer(map, corners, root) {
 
   return {
     remove: () => map.getLayer('flood') && map.removeLayer('flood'),
-    set: (url, stage) => swap(u, url, () => ((u.uStage.value = stage ?? -1000), (visible = true), wake())),
+    set(url, stage) {
+      blank = !url
+      if (blank) return map.triggerRepaint()
+      swap(u, url, () => ((u.uStage.value = stage ?? -1000), (visible = true), wake()))
+    },
     // Evidence overlay (coherence, nisar): same smoothed mask, flat colour, hidden when its source has no pass here.
     overlay(key, url, on) {
       const o = overlays[key]

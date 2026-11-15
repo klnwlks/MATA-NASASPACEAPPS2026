@@ -1,14 +1,14 @@
-// Time of day: real sun position over Bay, Laguna drives the map light, sky, hillshade, building shadows and a
+// Time of day: real sun position over Laguna drives the map light, sky, hillshade, building shadows and a
 // night tint. Shadows are "kinda" dynamic: direction and length follow the sun, but MapLibre can only offset a
 // whole layer, so buildings are bucketed by height and each bucket gets one offset.
 import { SHADOW_BUCKETS } from './style.js'
 import { setWaterLight } from './water.js'
 
 const RAD = Math.PI / 180
-const LAT = 14.14
-const LON = 121.25
+const LAT = 14.28
+const LON = 121.32
 const MANILA_UTC_OFFSET_MIN = 480 // UTC+8, no daylight saving
-const METRES_PER_PX_Z0 = 75900 // 78271.5 m/px at z0 for 512 px tiles, times cos(14.14°)
+const METRES_PER_PX_Z0 = 75850 // 78271.5 m/px at z0 for 512 px tiles, times cos(14.28°)
 
 // Low-precision solar ephemeris (Astronomical Almanac, about 0.01° over decades): plenty for map lighting.
 export function sunPosition(date) {

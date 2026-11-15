@@ -9,7 +9,7 @@
 import { BufferAttribute, Camera, Color, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector2, Vector3, Vector4, WebGLRenderer } from 'three'
 import { MercatorCoordinate } from 'maplibre-gl'
 
-const SLICES = 6
+const SLICES = 12
 export const DEPTH_EX = 6 // vertical exaggeration of water depth alone (not terrain): metre-scale depths are invisible at map scale
 const RIPPLE_FPS = 12
 const RIPPLE_MS = 3000
@@ -119,9 +119,11 @@ void main() {
   vec3 F = field(vUv);
   float wet = F.y, sure = F.z;
   float edge = smoothstep(0.35, 0.65, wet);
-  if (vS < 0.99) { // lower slices of the water column: a faint tint so a sideways view sees a filled body, not a floating sheet
+  if (vS < 0.99) { // lower slices: a faint body inside, but where the mask ends they stack into a near-opaque wall, so the water reads as a block with depth
     if (edge < 0.01) discard;
-    gl_FragColor = vec4(mix(vec3(0.1, 0.5, 0.62), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD)) * uAmb, 0.11 * edge);
+    float wall = 1.0 - smoothstep(0.55, 0.92, wet);
+    vec3 deep = mix(vec3(0.1, 0.5, 0.62), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD));
+    gl_FragColor = vec4(deep * mix(0.55, 0.9, vS) * uAmb, mix(0.05, 0.85, wall) * edge);
     #include <colorspace_fragment>
     return;
   }
@@ -150,9 +152,11 @@ uniform vec3 uColor;
 uniform float uAlpha, uVeil;
 varying float vS;
 void main() {
-  float a = uVeil > 0.5 ? veilCover(vUv) : smoothstep(0.35, 0.65, field(vUv).x);
+  float f = field(vUv).x;
+  float a = uVeil > 0.5 ? veilCover(vUv) : smoothstep(0.35, 0.65, f);
   if (a < 0.01) discard;
-  gl_FragColor = vec4(uColor, uAlpha * (vS < 0.99 ? 0.15 : 1.0) * a);
+  float wall = 1.0 - smoothstep(0.55, 0.92, f);
+  gl_FragColor = vec4(uColor * (vS < 0.99 ? 0.75 : 1.0), uAlpha * (vS < 0.99 ? mix(0.04, 0.9, wall * step(uVeil, 0.5)) : 1.0) * a);
   #include <colorspace_fragment>
 }`
 

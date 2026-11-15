@@ -8,7 +8,7 @@ const rows = [
   [Building2, 'bg-amber-tint text-amber-ink', 'Buildings · OSM', `OpenStreetMap footprints; missing heights drawn at ${SCHEMATIC_HEIGHT_M} m. Gaps are unknown, not empty.`],
   [Trees, 'bg-mint-tint text-mint-ink', 'Trees · OSM + fill', 'Mapped trees and decorative fill in woods and parks. Shape and size are schematic; shown from zoom 13.'],
   [Shapes, 'bg-cobalt-tint text-cobalt-ink', 'Boundaries · COD-AB', 'NAMRIA and PSA via OCHA, v3 (2025-02-13). Reference lines, not a legal survey.'],
-  [Satellite, 'bg-cobalt-tint text-cobalt-ink', 'Floods · Sentinel-1', 'Non-daily radar passes compared with a two-year dry-season reference. Signals are preliminary and not ground-verified; vegetation, buildings and agricultural water can obscure or mimic flooding. Missing observations are unknown, not dry.'],
+  [Satellite, 'bg-cobalt-tint text-cobalt-ink', 'Floods · Sentinel-1', 'Non-daily radar passes compared with a two-year dry-season reference and a four-year same-month history. Signals are preliminary and not ground-verified; vegetation, buildings and agricultural water can obscure or mimic flooding. Missing observations are unknown, not dry.'],
   [Layers, 'bg-cobalt-tint text-cobalt-ink', 'Second opinions · OPERA, InSAR coherence', 'OPERA water maps and ASF HyP3 InSAR coherence on built-up land (amber) add possible flooding that open-water radar misses. Coherence loss can also come from construction or other change. NISAR (cyan) appears only where its 2026 passes exist.'],
   [Waves, 'bg-cobalt-tint text-cobalt-ink', 'Lake level · DAHITI altimetry', 'Laguna de Bay height roughly every two weeks. Context, not a flood map.'],
 ]

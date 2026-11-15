@@ -18,7 +18,7 @@ The story's subjects, not the demo's operators: residents of Bay, Pila, Victoria
 
 Goal: a SAR-based decision-support web app. Using multi-temporal Sentinel-1 backscatter change detection, it replays how typhoon floods spread and receded in Philippine river basins and maps how long each barangay stayed underwater, with uncertainty ranges. Exposure indices and resident photo validation help LGUs and DRRM offices prioritise drainage, evacuation and recovery. Research basis: `Flood-Rewind-What-the-Typhoon-Left-Behind.pdf`.
 
-Cadence: Sentinel-1 is not daily. Over the selected Laguna area, descending track 32 passes about 05:47 Philippine time and ascending track 142 about 18:05. Each track uses its own dry-season reference from the replay window; four-year seasonal normalization is deferred.
+Cadence: Sentinel-1 is not daily. Over the selected Laguna area, descending track 32 passes about 05:47 Philippine time and ascending track 142 about 18:05. Each track uses its own dry-season reference from the replay window and its own 2020-11 to 2024-11 same-month history (flood pixels must be at least 2 standard deviations darker than that month's median).
 
 Current phase: map Laguna's 30 municipalities and 682 COD-AB barangays. Process primary Sentinel-1 observations for **Bay, Pila, Victoria and Santa Cruz** over 2024-11-15 to 2026-11-15. The current published preview covers Bay only (84 descending passes); the four-municipality, two-track run is in progress. Other municipalities are unknown, not dry.
 
@@ -37,7 +37,7 @@ Time and duration of flooding, with uncertainty built into the display, at baran
 ## Capabilities and Constraints
 
 - In scope now: observed-pass replay and Sentinel-1 open-water flood indications for the four focus municipalities; GLO-30 terrain, OSM buildings, COD-AB boundaries and contextual Laguna de Bay level.
-- Deferred: four-year normalization, secondary satellite opinions, duration estimates, rainfall, exposure indices, photo upload, modelled frames and storm attribution.
+- Deferred: secondary satellite opinions, duration estimates, rainfall, exposure indices, photo upload, modelled frames and storm attribution.
 - Terminology: barangay, PSGC, pass, flood signal, below threshold, unknown and low confidence (water on cropland or wetland, often paddies).
 - Undecided: exposure index definition, boundary vintage for historical joins.
 

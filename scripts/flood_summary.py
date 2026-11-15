@@ -34,7 +34,7 @@ UNKNOWN = (120, 120, 120, 70)
 PALETTE = {NODATA: UNKNOWN, BLIND: UNKNOWN, DRY: (0, 0, 0, 0), PERMANENT: (0, 0, 0, 0), FLOOD: (14, 157, 184, 215), FLOOD_LOW: (14, 157, 184, 170)}
 METHOD = {"reference": "per-pixel median VV of February–April acquisitions on the same track within the 2024–2026 replay window",
           "water": "VV below the per-pass Otsu threshold",
-          "flood": "water outside permanent water, at least 3 dB below the dry-season reference, slope under 5 degrees (60 m smoothed GLO-30)",
+          "flood": "water outside permanent water, at least 3 dB below the dry-season reference, at least 2 standard deviations below the same-track median of the same calendar month over 2020-11 to 2024-11 (three-month window), slope under 5 degrees (60 m smoothed GLO-30)",
           "floodHaRange": "high-confidence flood hectares with water threshold -1/+1 dB and dry-season drop 4/2 dB (strict, loose)",
           "lowConfidence": "flood pixels in ESA WorldCover 2021 cropland or wetland not connected to the reference water body",
           "radarBlind": "WorldCover built-up or tree cover without detected open water: unknown",

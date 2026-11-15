@@ -121,7 +121,7 @@ export default function App() {
         </div>
         {selected && <BarangayCard barangay={selected} states={floods?.states} manifest={manifests[selected.munipsgc]} frames={floods?.frames ?? []} frame={frame} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} onFrame={setFrame} />}
         {municipality && <MunicipalityCard municipality={municipality} psgcs={barangays.list.filter((b) => b.munipsgc === municipality.psgc).map((b) => b.psgc)} floods={floods} onFrame={setFrame} onClose={() => setMunicipality(null)} />}
-        {floods && <Legend frame={floods.frames[frame]} />}
+        {floods && <Legend frame={floods.frames[frame]} coherence={show.coherence && !!manifests[focusId]?.data?.frames.some((f) => f.coherenceUrl)} />}
         <MapControls map={map} show={show} onShow={setShow} onHome={() => setHomeTick((t) => t + 1)} minutes={minutes} onMinutes={setClockOverride} followingPass={clockOverride == null && !!pass} onFollowPass={pass ? () => setClockOverride(null) : null} hasCoherence={manifests[focusId]?.data?.frames.some((f) => f.coherenceUrl)} hasNisar={manifests[focusId]?.data?.frames.some((f) => f.nisarUrl)} />
         <LakeChart lake={floods?.lake} frames={floods?.frames ?? []} frame={frame} />
         <Timeline floods={floods} frame={frame} onFrame={setFrame} />

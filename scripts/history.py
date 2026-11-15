@@ -7,7 +7,8 @@ import json
 import os
 import sys
 import warnings
-from concurrent.futures import ThreadPoolExecutor
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 from common import CACHE, TRACKS, grid
@@ -44,9 +45,17 @@ def main(only):
         with ThreadPoolExecutor(max_workers=WORKERS) as pool:
             for r0 in range(state["rows"], shape[0], BLOCK_ROWS):
                 r1 = min(r0 + BLOCK_ROWS, shape[0])
+                started = time.monotonic()
+                print(f"track {track}: loading rows {r0}:{r1}, {len(items)} acquisitions", flush=True)
                 def load(item):
                     return quantise(next(read_blocks(item, sas, T, shape, [(r0, r1)]))[2])
-                stack = np.stack(list(pool.map(load, items)))
+                stack = np.empty((len(items), r1 - r0, shape[1]), dtype="uint8")
+                futures = {pool.submit(load, item): i for i, item in enumerate(items)}
+                for done, future in enumerate(as_completed(futures), 1):
+                    i = futures[future]
+                    stack[i] = future.result()
+                    print(f"track {track}: rows {r0}:{r1}, acquisition {done}/{len(items)} "
+                          f"({items[i]['properties']['datetime'][:10]}), {time.monotonic() - started:.0f}s", flush=True)
                 for m in range(1, 13):
                     sel = np.flatnonzero(np.isin(months, [(m - 2) % 12 + 1, m, m % 12 + 1]))
                     if not len(sel):

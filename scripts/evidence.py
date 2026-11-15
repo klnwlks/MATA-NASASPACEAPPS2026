@@ -165,7 +165,112 @@ def nisar(c):
                    f"NISAR GCOV HV darkening >= 3 dB against low-lake acquisitions (before 2026-07-31) of the same track; flagged at >= 2 ha and >= 3x the darkening rate more than 2 km from the lake; nearest acquisition within {NISAR_DAYS} days")
 
 
-SOURCES = {"opera": opera, "nisar": nisar}
+def gap_class(ref, sec):
+    """Temporal baseline of a pair in days, with 5-7 day pairs pooled as 6: coherence decays with the gap between
+    passes, so a pair is only ever compared with dry-season pairs of the same gap."""
+    days = (datetime.strptime(sec[:8], "%Y%m%d") - datetime.strptime(ref[:8], "%Y%m%d")).days
+    return 6 if 5 <= days <= 7 else days
+
+
+def built_mask(c):
+    """uint8 raster of WorldCover class 50 (built-up) on the grid, cached packbits."""
+    path = f"{EV}/built.npz"
+    h, w = c.shape
+    if os.path.exists(path):
+        return np.unpackbits(np.load(path)["m"])[: h * w].reshape(h, w).astype(bool)
+    import rasterio
+    from rasterio.warp import reproject, Resampling
+    lc = np.zeros(c.shape, "uint8")
+    with rasterio.open(WC) as src:
+        reproject(rasterio.band(src, 1), lc, dst_transform=c.T, dst_crs="EPSG:3857", resampling=Resampling.nearest)
+    built = lc == BUILT
+    np.savez_compressed(path, m=np.packbits(built))
+    return built
+
+
+def cell_tables(c, built, F, hc, wc, nb1):
+    """Built pixels per (coarse coherence cell, barangay), and built pixels more than 2 km inland per cell (the control),
+    so the 10 m built-up mask never has to be touched per pair. Cached next to the evidence inputs."""
+    path = f"{EV}/coh_cells_{F}.npz"
+    if os.path.exists(path):
+        z = np.load(path)
+        if z["wc"] == wc and z["hc"] == hc and z["nb1"] == nb1:
+            return z["key"], z["n"], z["ctrl"]
+    inland = np.kron(c.inland8(), np.ones((LAKE_STEP, LAKE_STEP), bool))[: c.shape[0], : c.shape[1]]
+    keys, ns, ctrl = [], [], np.zeros(hc * wc, "int64")
+    step = F * 128
+    for r in range(0, c.shape[0], step):
+        b, ids = built[r: r + step], c.ids[r: r + step]
+        rr, cc = np.nonzero(b & (ids > 0))
+        cell = ((rr + r) // F) * wc + cc // F
+        k, n = np.unique(cell.astype("int64") * nb1 + ids[rr, cc], return_counts=True)
+        keys.append(k), ns.append(n)
+        cin = inland[r: r + step][rr, cc]
+        ctrl += np.bincount(cell[cin], minlength=hc * wc)
+    key, n = np.concatenate(keys), np.concatenate(ns)
+    np.savez(path, key=key, n=n, ctrl=ctrl, wc=wc, hc=hc, nb1=nb1)
+    return key, n, ctrl
+
+
+def coherence(c):
+    """Built-up pixels whose coherence fell COH_DROP below the dry-season median of pairs with the same baseline,
+    judged against the same loss on built-up land more than 2 km from the lake in the same pair (rain and season
+    move both alike). A pair whose baseline has fewer than MIN_REF dry-season pairs gets no verdict."""
+    z = np.load(f"{EV}/coherence.npz")
+    ref, sec = [str(r) for r in z["reference"]], [str(s) for s in z["secondary"]]
+    F, (hc, wc) = int(z["factor"]), tuple(int(x) for x in z["shape"])
+    files = [f"{EV}/coh/{str(n)}.npy" for n in z["files"]]
+    gaps = [gap_class(r, s) for r, s in zip(ref, sec)]
+    dry = [i for i in range(len(ref)) if ref[i][4:6] in ("02", "03", "04") and sec[i][4:6] in ("02", "03", "04")]
+    classes = {g: [i for i in dry if gaps[i] == g] for g in set(gaps)}
+    classes = {g: idx for g, idx in classes.items() if len(idx) >= MIN_REF}
+    base = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN columns stay NaN: no verdict there
+        for g, idx in classes.items():
+            stack = [np.load(files[i], mmap_mode="r") for i in idx]
+            base[g] = np.concatenate([np.nanmedian(np.stack([s[r: r + 128] for s in stack]).astype("float32"), 0) for r in range(0, hc, 128)])
+    built = built_mask(c)
+    nb1 = len(c.feats) + 1
+    key, n, ctrl = cell_tables(c, built, F, hc, wc, nb1)
+    cell, bgy = key // nb1, key % nb1
+    total = np.bincount(bgy, weights=n, minlength=nb1) * c.pxh
+    by_date = {s[:8]: i for i, s in enumerate(sec)}
+    flags = {b: [None] * len(c.frames) for b in c.rec}
+    details = {b: [None] * len(c.frames) for b in c.rec}
+    lost_by_frame = {}
+    for fi, f in enumerate(c.frames):
+        i = by_date.get(f["utc"][:10].replace("-", "")) if f["track"] == 32 else None  # pairs exist for track 32 only
+        if i is None or gaps[i] not in base:
+            continue
+        coh = np.load(files[i]).astype("float32")
+        valid = np.isfinite(coh) & np.isfinite(base[gaps[i]])
+        lost = ((coh - base[gaps[i]]) <= COH_DROP).ravel() & valid.ravel()
+        lost_by_frame[fi] = lost.reshape(hc, wc)
+        ctrl_seen = ctrl[valid.ravel()].sum()
+        rate = ctrl[lost].sum() / ctrl_seen if ctrl_seen else None
+        lost_ha = np.bincount(bgy, weights=n * lost[cell], minlength=nb1) * c.pxh
+        seen_ha = np.bincount(bgy, weights=n * valid.ravel()[cell], minlength=nb1) * c.pxh
+        for b in c.rec:
+            if rate is None or total[b] == 0 or seen_ha[b] <= COH_SEEN * total[b]:
+                continue
+            flags[b][fi] = int(lost_ha[b] >= max(FLOOR_HA, NOISE_FACTOR * rate * total[b]))
+            details[b][fi] = f"{lost_ha[b]:.1f} of {total[b]:.0f} ha built-up lost coherence · {gaps[i]}-day pair from {ref[i][:4]}-{ref[i][4:6]}-{ref[i][6:8]}"
+    for m, (r0, r1, c0, c1) in c.crops.items():
+        mask = c.mask(m) & built[r0:r1, c0:c1]
+        for fi, lost in lost_by_frame.items():
+            sub = lost[r0 // F: -(-r1 // F), c0 // F: -(-c1 // F)]
+            up = np.kron(sub, np.ones((F, F), bool))[r0 - r0 // F * F:, c0 - c0 // F * F:][: r1 - r0, : c1 - c0]
+            hit = up & mask
+            if hit.any():
+                rel = f"{m}/coherence/{c.frames[fi]['utc'][:10].replace('-', '')}.png"
+                overlay(f"{FLOODS}/{rel}", hit, AMBER)
+                c.set_file(m, fi, "coherenceFile", rel)
+    c.set_evidence("coherence", "InSAR coherence, built-up", flags, details,
+                   f"ASF HyP3 INSAR_ISCE_MULTI_BURST, consecutive track-32 pairs ending at the pass; built-up pixels {COH_DROP} or more below their dry-season median coherence; flagged at >= 2 ha and >= 3x the same loss on built-up land 2 km inland")
+
+
+SOURCES = {"opera": opera, "nisar": nisar, "coherence": coherence}
 
 
 def main():

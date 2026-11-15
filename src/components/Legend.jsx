@@ -10,7 +10,7 @@ export default function Legend({ frame }) {
       <figcaption className="text-xs font-medium text-muted">Barangay state{frame ? ` · ${shortDate(frame.utc)}` : ''}</figcaption>
       <ul className="mt-1.5 space-y-1 text-sm">
         <li className="flex items-center gap-2"><span aria-hidden className={`${SWATCH} border-cobalt bg-cobalt/60`} />Flood signal</li>
-        <li className="flex items-center gap-2"><span aria-hidden className={`${SWATCH} border-cobalt/60 bg-white`} />None seen</li>
+        <li className="flex items-center gap-2"><span aria-hidden className={`${SWATCH} border-cobalt/60 bg-white`} />Below threshold</li>
         <li className="flex items-center gap-2"><span aria-hidden className={`${SWATCH} border-muted/60`} style={{ backgroundImage: HATCH }} />Unknown</li>
       </ul>
       <p className="mt-1.5 max-w-44 text-[11px] leading-tight text-muted">Sentinel-1, this pass. Unknown is never drawn as dry.</p>

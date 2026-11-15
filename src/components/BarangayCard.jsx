@@ -12,7 +12,7 @@ function Row({ icon: Icon, tone, label, children, mono }) {
   )
 }
 
-const STATE = { 1: ['Flood signal', 'bg-cobalt text-white'], 0: ['No flood seen', 'bg-page text-ink'], [-1]: ['Unknown', 'bg-page text-muted'] }
+const STATE = { 1: ['Flood signal', 'bg-cobalt text-white'], 0: ['Below threshold', 'bg-page text-ink'], [-1]: ['Unknown', 'bg-page text-muted'] }
 const SOURCE = { openWater: 'Sentinel-1 open water', opera: 'OPERA', coherence: 'InSAR coherence', nisar: 'NISAR' }
 const sources = (keys) => keys.map((k) => SOURCE[k] ?? k).join(', ')
 const range = (e) => (e.maxDays == null ? `at least ${e.minDays} d, upper bound unknown` : `between ${e.minDays} and ${e.maxDays} days`)

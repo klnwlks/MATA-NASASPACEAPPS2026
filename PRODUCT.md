@@ -38,7 +38,7 @@ Time and duration of flooding, with uncertainty built into the display, at baran
 
 - In scope now: observed-pass replay and Sentinel-1 open-water flood indications for the four focus municipalities; GLO-30 terrain, OSM buildings, COD-AB boundaries and contextual Laguna de Bay level.
 - Deferred: four-year normalization, secondary satellite opinions, duration estimates, rainfall, exposure indices, photo upload, modelled frames and storm attribution.
-- Terminology: barangay, PSGC, pass, observed, unknown, low confidence (water on cropland or wetland, often paddies), and no flood seen.
+- Terminology: barangay, PSGC, pass, flood signal, below threshold, unknown and low confidence (water on cropland or wetland, often paddies).
 - Undecided: exposure index definition, boundary vintage for historical joins.
 
 ## Brand Commitments

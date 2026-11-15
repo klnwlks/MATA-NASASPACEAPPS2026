@@ -9,7 +9,7 @@ import Status from './components/Status.jsx'
 import Credits from './components/Credits.jsx'
 import LakeChart from './components/LakeChart.jsx'
 import { loadBarangays, loadFloods } from './data.js'
-import { manilaTime } from './map/sun.js'
+import { manilaMinutes, manilaTime } from './map/sun.js'
 
 export default function App() {
   const [barangays, setBarangays] = useState(null)
@@ -22,8 +22,11 @@ export default function App() {
   const [show, setShow] = useState({ boundaries: true, buildings: true, coherence: true, nisar: true })
   const [fit, setFit] = useState(null)
   const [homeTick, setHomeTick] = useState(0)
-  const [minutes, setMinutes] = useState(15 * 60 + 30) // Manila clock; mid-afternoon reads best by default
-  const time = useMemo(() => manilaTime(minutes), [minutes])
+  const [clockOverride, setClockOverride] = useState(null) // Manila minutes the user dialled in; null follows the satellite pass
+  const passUtc = floods?.frames[frame]?.utc
+  const pass = useMemo(() => (passUtc ? new Date(passUtc) : null), [passUtc])
+  const time = useMemo(() => (clockOverride == null ? (pass ?? manilaTime(15 * 60 + 30)) : manilaTime(clockOverride, pass ?? new Date())), [clockOverride, pass])
+  const minutes = manilaMinutes(time)
 
   const report = useCallback((key, value) => setStatus((s) => (s[key] === value ? s : { ...s, [key]: value })), [])
 
@@ -71,7 +74,7 @@ export default function App() {
         <Status status={status} />
         {barangays && <BarangayCard list={barangays.list} floods={floods} frame={frame} selectedId={selectedId} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} onFrame={setFrame} />}
         {municipality && <MunicipalityCard municipality={municipality} floods={floods} onFrame={setFrame} onClose={() => setMunicipality(null)} />}
-        <MapControls map={map} show={show} onShow={setShow} onHome={() => setHomeTick((t) => t + 1)} minutes={minutes} onMinutes={setMinutes} />
+        <MapControls map={map} show={show} onShow={setShow} onHome={() => setHomeTick((t) => t + 1)} minutes={minutes} onMinutes={setClockOverride} followingPass={clockOverride == null && !!pass} onFollowPass={pass ? () => setClockOverride(null) : null} />
         <LakeChart lake={floods?.lake} frames={floods?.frames ?? []} frame={frame} />
         <Timeline floods={floods} frame={frame} onFrame={setFrame} />
         <Credits />

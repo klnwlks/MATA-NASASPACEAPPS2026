@@ -13,8 +13,8 @@ function Toggle({ on, onChange, label, tone, children }) {
 
 const clock = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 
-// Time of day for lighting only; the sun moves, the data does not.
-function TimeOfDay({ minutes, onMinutes }) {
+// Time of day for lighting. Follows the selected pass's acquisition time until the slider is moved.
+function TimeOfDay({ minutes, onMinutes, followingPass, onFollowPass }) {
   const [open, setOpen] = useState(false)
   const day = minutes >= 6 * 60 && minutes < 18 * 60
   const Icon = day ? Sun : Moon
@@ -24,17 +24,24 @@ function TimeOfDay({ minutes, onMinutes }) {
         <Icon aria-hidden size={20} />
       </button>
       {open && (
-        <label className="absolute left-14 top-0 flex w-64 items-center gap-3 rounded-2xl bg-chalk px-4 py-3 shadow-float">
-          <span className="sr-only">Time of day, Manila</span>
-          <input type="range" min={0} max={1435} step={5} value={minutes} onChange={(e) => onMinutes(Number(e.target.value))} className="w-full accent-cobalt" />
-          <output className="font-mono text-xs text-ink">{clock(minutes)}</output>
-        </label>
+        <div className="absolute left-14 top-0 flex w-64 flex-col gap-2 rounded-2xl bg-chalk px-4 py-3 shadow-float">
+          <label className="flex items-center gap-3">
+            <span className="sr-only">Time of day, Manila</span>
+            <input type="range" min={0} max={1435} step={5} value={minutes} onChange={(e) => onMinutes(Number(e.target.value))} className="w-full accent-cobalt" />
+            <output className="font-mono text-xs text-ink">{clock(minutes)}</output>
+          </label>
+          {onFollowPass && (
+            <button type="button" aria-pressed={followingPass} onClick={onFollowPass} className={`rounded-lg px-2 py-1 text-left text-xs ${followingPass ? 'bg-cobalt-tint text-cobalt' : 'text-ink hover:bg-cobalt-tint'}`}>
+              {followingPass ? 'Following satellite pass' : 'Match satellite pass'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
 }
 
-export default function MapControls({ map, show, onShow, onHome, minutes, onMinutes }) {
+export default function MapControls({ map, show, onShow, onHome, minutes, onMinutes, followingPass, onFollowPass }) {
   const [view, setView] = useState({ bearing: 0, pitch: 0 })
   useEffect(() => {
     if (!map) return
@@ -56,7 +63,7 @@ export default function MapControls({ map, show, onShow, onHome, minutes, onMinu
       <Toggle on={show.buildings} onChange={(v) => onShow({ ...show, buildings: v })} label="Buildings" tone="bg-amber-tint text-amber-ink"><Building2 aria-hidden size={20} /></Toggle>
       <Toggle on={show.coherence} onChange={(v) => onShow({ ...show, coherence: v })} label="Built-up coherence loss (amber stripes, low confidence)" tone="bg-amber-tint text-amber-ink"><Rows3 aria-hidden size={20} /></Toggle>
       <Toggle on={show.nisar} onChange={(v) => onShow({ ...show, nisar: v })} label="NISAR L-band darkening (cyan dots, 2026 only)" tone="bg-cobalt-tint text-cobalt"><Grid3x3 aria-hidden size={20} /></Toggle>
-      <TimeOfDay minutes={minutes} onMinutes={onMinutes} />
+      <TimeOfDay minutes={minutes} onMinutes={onMinutes} followingPass={followingPass} onFollowPass={onFollowPass} />
       <p className="mt-1 text-center font-mono text-[10px] leading-tight text-muted" aria-label={`Bearing ${view.bearing} degrees, pitch ${view.pitch} degrees`}>{view.bearing}°<br />{view.pitch}°</p>
     </div>
   )

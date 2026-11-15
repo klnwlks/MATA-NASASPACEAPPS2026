@@ -2,9 +2,10 @@
 // extrusions and trees, so roofs and crowns above the surface stay dry and the parts below it read as submerged.
 // Cost: one 32k-vertex mesh, a texture swap per frame, a cheap fragment shader; ripples repaint at RIPPLE_FPS.
 // The surface height is a visual cue (lake stage above its two-year low, see floodRise), not measured depth.
-import { BufferAttribute, Camera, Color, DoubleSide, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector2, Vector3, Vector4, WebGLRenderer } from 'three'
+import { BufferAttribute, Camera, Color, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector2, Vector3, Vector4, WebGLRenderer } from 'three'
 import { MercatorCoordinate } from 'maplibre-gl'
 
+const SLICES = 4
 const RIPPLE_FPS = 12
 const DEM_N = 2 ** 12 // the terrain's own tile level, so the surface follows the ground MapLibre draws
 const [NX, NY] = [160, 200]
@@ -58,17 +59,20 @@ function surface(dem, nw, se, origin, s) {
     const at = (a, b) => dem.m[(iy + b) * dem.w + ix + a]
     elev[k] = (at(0, 0) * (1 - ax) + at(1, 0) * ax) * (1 - ay) + (at(0, 1) * (1 - ax) + at(1, 1) * ax) * ay
   }
+  g.setAttribute('slice', new BufferAttribute(new Float32Array(pos.count), 1)) // 0: overlays lie on the ground
   return g.setAttribute('elev', new BufferAttribute(elev, 1))
 }
 
 const VERT = /* glsl */ `
-attribute float elev;
-uniform float uEx, uRise;
+attribute float elev, slice;
+uniform float uEx, uRise, uLift;
 varying vec3 vW;
 varying vec2 vUv;
+varying float vS;
 void main() {
   vUv = vec2(uv.x, 1.0 - uv.y);
-  vW = vec3(position.xy, elev * uEx + uRise);
+  vS = slice;
+  vW = vec3(position.xy, elev * uEx + uRise * slice + uLift);
   gl_Position = projectionMatrix * vec4(vW, 1.0);
 }`
 
@@ -95,10 +99,17 @@ const FRAG = MASK + /* glsl */ `
 uniform vec3 uEye, uSky, uHorizon, uSunDir;
 uniform float uTime, uSun, uAmb;
 varying vec3 vW;
+varying float vS;
 void main() {
   vec3 F = field(vUv);
   float wet = F.y, sure = F.z;
   float edge = smoothstep(0.35, 0.65, wet);
+  if (vS < 0.99) { // lower slices of the water column: a faint tint so a sideways view sees a filled body, not a floating sheet
+    if (edge < 0.01) discard;
+    gl_FragColor = vec4(vec3(0.03, 0.28, 0.6) * uAmb, 0.16 * edge);
+    #include <colorspace_fragment>
+    return;
+  }
   if (edge < 0.01) {
     // Dry pixels scattered inside the veil are noise at this scale: average a ring 3 texels out to close holes up to ~4 px.
     vec2 d = 3.0 / uSize;
@@ -145,8 +156,12 @@ export async function addWaterLayer(map, corners, root) {
   const origin = MercatorCoordinate.fromLngLat(map.getCenter(), 0)
   const s = origin.meterInMercatorCoordinateUnits()
   const toLocal = new Matrix4().makeTranslation(origin.x, origin.y, 0).scale(new Vector3(s, -s, s))
-  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uRise: { value: 0.5 } } })
-  const mesh = new Mesh(surface(dem, nw, se, origin, s), mat)
+  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uRise: { value: 0.5 }, uLift: { value: 0 } } })
+  const base = surface(dem, nw, se, origin, s)
+  // The surface drawn once per slice, from just above the ground to the top, so the water has a body.
+  const volume = new InstancedBufferGeometry().copy(base)
+  volume.setAttribute('slice', new InstancedBufferAttribute(Float32Array.from({ length: SLICES }, (_, i) => 0.04 + (0.96 * i) / (SLICES - 1)), 1))
+  const mesh = new Mesh(volume, mat)
   mesh.frustumCulled = false
   const scene = new Scene().add(mesh)
   const [camera, inv, eye, loader] = [new Camera(), new Matrix4(), new Vector4(), new TextureLoader()]
@@ -169,8 +184,8 @@ export async function addWaterLayer(map, corners, root) {
   }
   const overlays = Object.fromEntries(
     [['coherence', '#B7791F'], ['nisar', '#0E9DB8']].map(([key, hex]) => {
-      const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uEx: u.uEx, uRise: u.uRise } })
-      const o = new Mesh(mesh.geometry, m)
+      const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uEx: u.uEx, uRise: { value: 0 }, uLift: { value: 0.3 } } })
+      const o = new Mesh(base, m)
       Object.assign(o, { frustumCulled: false, visible: false, renderOrder: 1 })
       scene.add(o)
       return [key, { mat: m, mesh: o, url: null }]
@@ -199,7 +214,8 @@ export async function addWaterLayer(map, corners, root) {
     },
     onRemove: () => {
       clearInterval(timer)
-      mesh.geometry.dispose()
+      base.dispose()
+      volume.dispose()
       for (const m of [mat, ...Object.values(overlays).map((o) => o.mat)]) {
         m.uniforms.uMask.value?.dispose()
         m.dispose()

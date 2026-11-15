@@ -12,6 +12,7 @@ import { loadBarangays, loadFloods } from './data.js'
 import { manilaMinutes, manilaTime } from './map/sun.js'
 
 const SWEEP_MS = 4000
+const SWEEP_DELAY_MS = 300
 
 export default function App() {
   const [barangays, setBarangays] = useState(null)
@@ -35,16 +36,19 @@ export default function App() {
     lastPass.current = pass
     if (!pass || !prev || prev.getTime() === pass.getTime() || clockOverride != null) return
     const end = pass.getTime()
-    const t0 = performance.now()
-    let raf
-    const step = (now) => {
-      const k = Math.min(1, (now - t0) / SWEEP_MS)
-      setSweep(k < 1 ? new Date(end - (1 - k) * 864e5) : null)
-      if (k < 1) raf = requestAnimationFrame(step)
-    }
-    raf = requestAnimationFrame(step)
+    let tick
+    // Wait out slider dragging, then step at ~10 Hz: relighting the map every frame starves the slider's input.
+    const start = setTimeout(() => {
+      const t0 = performance.now()
+      tick = setInterval(() => {
+        const k = Math.min(1, (performance.now() - t0) / SWEEP_MS)
+        setSweep(k < 1 ? new Date(end - (1 - k) * 864e5) : null)
+        if (k >= 1) clearInterval(tick)
+      }, 100)
+    }, SWEEP_DELAY_MS)
     return () => {
-      cancelAnimationFrame(raf)
+      clearTimeout(start)
+      clearInterval(tick)
       setSweep(null)
     }
   }, [pass, clockOverride])

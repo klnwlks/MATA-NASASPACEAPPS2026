@@ -26,13 +26,10 @@ COH_DROP, BUILT = -0.2, 50  # coherence lost against the dry-season median; Worl
 AMBER, CYAN = (183, 121, 31, 200), (14, 157, 184, 200)  # design status amber; flood cyan
 
 
-def overlay(name, mask, rgba, pattern):
-    """Patterned, transparent PNG of a boolean mask on the flood grid; the pattern keeps low-confidence layers apart
-    from the solid open-water frames without relying on colour."""
-    rows, cols = np.indices(mask.shape)
-    keep = ((rows - cols) % 6 < 3) if pattern == "stripes" else ((rows % 4 < 2) & (cols % 4 < 2))
+def overlay(name, mask, rgba):
+    """Solid transparent PNG of a boolean mask on the flood grid; the viewer smooths its edges and keeps its colour."""
     img = np.zeros((*mask.shape, 4), "uint8")
-    img[mask & keep] = rgba
+    img[mask] = rgba
     os.makedirs(os.path.dirname(f"{FRAMES}/{name}"), exist_ok=True)
     Image.fromarray(img, "RGBA").save(f"{FRAMES}/{name}", optimize=True)
     return name
@@ -99,7 +96,7 @@ def nisar(frames, ids, px_ha, permanent):
         if not near:
             continue
         gap, i = min(near)
-        f["nisarFile"] = overlay(f"nisar/{utc[i][:10]}.png", masks[i], CYAN, "dots")
+        f["nisarFile"] = overlay(f"nisar/{utc[i][:10]}.png", masks[i], CYAN)
         for b, (ha, flag) in hits[i].items():
             out[b]["flagged"][fi] = flag
             out[b]["detail"][fi] = f"{ha} ha darkened in HV · {utc[i][:10]}, {gap} d from pass"
@@ -122,7 +119,7 @@ def coherence(frames, ids, px_ha, permanent, built):
             continue
         lost = (coh[i] - base <= COH_DROP) & built
         rate = lost[control].mean()
-        f["coherenceFile"] = overlay(f"coherence/{f['utc'][:10]}.png", lost & (ids > 0), AMBER, "stripes")
+        f["coherenceFile"] = overlay(f"coherence/{f['utc'][:10]}.png", lost & (ids > 0), AMBER)
         for b in out:
             sel = (ids == b) & built
             ha = float(lost[sel].sum() * px_ha)

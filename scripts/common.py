@@ -1,7 +1,7 @@
 """Shared province grid and contracts for every pipeline script. Import from scripts/ (cwd = repo root).
 
-Grid: Laguna barangay bounds + BUFFER_DEG, Web Mercator, PX metres per pixel (about 10 m on the ground at 14.3 N).
-Barangay order everywhere = order of public/data/barangays.geojson features (sorted by PSGC); raster id = index + 1, 0 = outside.
+Grid: the four selected Laguna municipalities' barangay bounds + BUFFER_DEG, Web Mercator, PX metres per pixel.
+Barangay order everywhere = selected features in public/data/barangays.geojson order; raster id = index+1, 0 = outside.
 
 Disk layout (CACHE is on disk, not tmpfs; keep it under about 3.5 GB):
   CACHE/history_<track>_med.npy, _sig.npy   uint8 (12, H, W): per-calendar-month seasonal median / sigma (see history.py)
@@ -24,12 +24,12 @@ from rasterio.features import rasterize
 from rasterio.transform import Affine, from_origin
 from rasterio.warp import transform_bounds, transform_geom
 
-# A named province gets its own inputs, outputs and cache; the default preserves the running Laguna job.
-# The current classifier still has Laguna-specific DEM and connectivity; namespacing alone does not enable another province.
-PROVINCE = os.environ.get("MATA_PROVINCE")
-BARANGAYS = f"public/data/provinces/{PROVINCE}/barangays.geojson" if PROVINCE else "public/data/barangays.geojson"
-FLOODS = f"public/data/floods/{PROVINCE}" if PROVINCE else "public/data/floods"
-CACHE = f"/home/lukas/mata-cache/{PROVINCE}" if PROVINCE else "/home/lukas/mata-cache"
+# The map shows all of Laguna, but this run processes only Bay and three flood-prone municipalities.
+PROVINCE = None
+MUNICIPALITIES = frozenset(("0403402000", "0403422000", "0403426000", "0403430000"))
+BARANGAYS = "public/data/barangays.geojson"
+FLOODS = "public/data/floods"
+CACHE = "/home/lukas/mata-cache/laguna-four"
 BUFFER_DEG, PX = 0.01, 10.31
 CROP_PAD_PX = 20  # municipality crops: its barangays' pixel extent plus this margin
 START, END = "2024-11-15", "2026-11-15"
@@ -38,7 +38,11 @@ NODATA, DRY, PERMANENT, FLOOD, FLOOD_LOW, BLIND = range(6)
 
 
 def features():
-    return json.load(open(BARANGAYS))["features"]
+    with open(BARANGAYS) as f:
+        selected = [feature for feature in json.load(f)["features"] if feature["properties"]["munipsgc"] in MUNICIPALITIES]
+    if {feature["properties"]["munipsgc"] for feature in selected} != MUNICIPALITIES:
+        raise ValueError("A selected municipality is missing from the Laguna boundaries")
+    return selected
 
 
 def grid():

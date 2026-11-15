@@ -1,11 +1,11 @@
 # Data provenance
 
-## National scope in preparation
+## Current Laguna scope
 
-- `provinces.geojson`: OCHA COD-AB Philippines v03, `phl_admin2`, valid 2025-02-13, PSA/NAMRIA via HDX, CC BY-IGO. `scripts/provinces.py` preserves all 88 admin-2 areas, including Metro Manila districts, with geometry simplified at 0.0005 degrees.
-- `provinces/<pcode>/barangays.geojson`: the same COD-AB release, `phl_admin4`, extracted by `scripts/priority_boundaries.py` for Cagayan, Agusan del Norte, Pangasinan, Pampanga and Laguna; geometry simplified at 0.00001 degrees.
-- Priority selection uses river and coastal flood exposure in the 2025 WorldRiskReport as [reported by GMA News](https://www.gmanetwork.com/news/topstories/nation/960359/philippines-most-disaster-prone-country-2025/story/). The first four are its four highest-exposure provinces; Laguna is retained from the original project scope. This is exposure, not a ranking of observed floods during the replay window.
-- The current run uses only Sentinel-1 observations and dry-season references within 2024-11-15 to 2026-11-15. Four-year seasonal normalization and second opinions are deferred. The national replay is not yet published.
+- `barangays.geojson`: OCHA COD-AB Philippines v03, `phl_admin4`, valid 2025-02-13, PSA/NAMRIA via HDX, CC BY-IGO. `scripts/boundaries.py` extracts 682 barangays in 30 Laguna municipalities, simplifying geometry at 0.00001 degrees.
+- Current processing covers Bay, Pila, Victoria and Santa Cruz (67 barangays) using Sentinel-1 observations and same-track dry-season references within 2024-11-15 to 2026-11-15. Four-year seasonal normalization and second opinions are deferred. Observations for the three additional municipalities are not yet published.
+- The selection is a focused set with documented flood exposure, not a verified ranking of every Laguna municipality: [IGES studied the Pila–Victoria subwatershed](https://www.iges.or.jp/en/pub/land-cover-change-and-flood-extent-pila/en), and a [UP Los Baños student assessment identified flood-prone Santa Cruz barangays](https://ersg.uplb.edu.ph/student-projects/areas-that-are-high-risk-of-flooding-in-santa-cruz-laguna/). Bay was the existing study area.
+- National and other province boundary extracts prepared during an earlier scope are retained as data, but the viewer and current processing cover Laguna only.
 - Early Bay preview (`floods/index.json`, `states.json`, `0403402000/`): `scripts/publish_bay_primary.py` reads the existing `/tmp/mata-floods/classes_old.npz` and `manifest_old.json` from the earlier Bay run. The 84 track-32 Sentinel-1 observations span 2024-11-19 to 2026-10-29. The preview uses only the original open-water states and the replay-window February–April dry-season reference; it omits second opinions, duration estimates and unavailable sensitivity ranges. All other barangays have no preview record and remain unknown.
 
 ## Existing Bay replay
@@ -14,7 +14,7 @@ Retrieved 2026-11-15 (area moved from Los Baños to Bay, Laguna). Regenerate wit
 
 | File | Source | Version / date | Licence | Transformation |
 |---|---|---|---|---|
-| `barangays.geojson` | OCHA COD-AB Philippines (PSA, NAMRIA), `phl_admin4` layer, dataset `cod-ab-phl` on HDX | v03, valid 2025-02-13 | CC BY-IGO | Filtered to PSGC prefix `0403402` (Bay), PSGC normalised to 10-char string, geometry simplified at 1e-5 deg (about 1 m) with topology kept |
+| `barangays.geojson` | OCHA COD-AB Philippines (PSA, NAMRIA), `phl_admin4` layer, dataset `cod-ab-phl` on HDX | v03, valid 2025-02-13 | CC BY-IGO | Filtered to PSGC prefix `04034` (Laguna), PSGC normalised to 10-char string, geometry simplified at 1e-5 deg (about 1 m) with topology kept |
 | `terrain/` | Copernicus DEM GLO-30 public COG `Copernicus_DSM_COG_10_N14_00_E121_00_DEM` (AWS Open Data, no account) | 2021 release | Copernicus DEM licence; credit "Contains modified Copernicus DEM GLO-30 data" | Bilinear warp to Web Mercator tiles z8 to z12, Terrarium encoding, nodata to 0 m. Surface model, not bare earth; about 30 m cells; heights are EGM2008 orthometric metres |
 | `basemap.pmtiles` | Protomaps basemap build `20261113.pmtiles` (v4.15.2), derived from OpenStreetMap | build 2026-11-13 | ODbL, credit "OpenStreetMap contributors" | `pmtiles extract` (go-pmtiles v1.31.2) with bbox 121.125,14.002,121.382,14.279, z0 to z15 |
 | `trees.geojson` | `basemap.pmtiles` above (`pois` kind `tree`, `landuse` polygons); elevation from `terrain/` z12 | build 2026-11-13 | ODbL, credit "OpenStreetMap contributors" | `scripts/trees.py`: feature 1 is 2,068 OSM tree points. Feature 0 is 27,266 seeded random points inside wood, forest, nature reserve, park and garden polygons within the municipality plus 300 m. These are decorative, not observed trees. Each point carries a bilinear Terrarium elevation sample (m) |

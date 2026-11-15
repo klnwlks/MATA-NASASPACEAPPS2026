@@ -13,10 +13,10 @@ Inputs (written by floods.py, see common.py): CACHE/grid.npz, CACHE/stats.npz, C
 Output under public/data/floods/: index.json, <munipsgc>/manifest.json (barangay records + frames[]) and one palette PNG per
 municipality crop and pass, <munipsgc>/<YYYYMMDD>_<track>.png, masked to that municipality's barangays. Every frame is
 written, a fully transparent one is only a few hundred bytes. The old single-municipality layout is deleted; lake.json stays.
-Run after floods.py (any number of finished passes), then opera/nisar/coherence, evidence.py, combine.py:
-  .venv/bin/python scripts/flood_summary.py [--force]     (--force rewrites PNGs that already exist)
+Run after floods.py (any number of finished passes), then combine.py --primary-only:
+  .venv/bin/python scripts/flood_summary.py
 """
-import glob, json, os, shutil, sys
+import glob, json, os, shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import numpy as np
@@ -75,7 +75,7 @@ def passes():
     return g, s, order
 
 
-def main(force):
+def main():
     g, s, order = passes()
     T, shape = Affine(*g["transform"]), tuple(int(x) for x in g["shape"])
     feats = features()
@@ -114,9 +114,9 @@ def main(force):
     # Frames: one pass raster in memory at a time, cropped per municipality; zlib releases the GIL so a few threads help.
     pool = ThreadPoolExecutor(3)
     for k, (i, f) in enumerate(zip(order, frames)):
-        todo = [m for m in munis if force or not os.path.exists(f"{FLOODS}/{m}/{f['file']}")]
-        if not todo:
-            continue
+        # Existing images can have the same date and municipality but a different grid or detection method.
+        # Rewrite them rather than silently reusing stale masks.
+        todo = list(munis)
         c = np.load(f"{CACHE}/cls/{f['id']}.npz")["c"]
         jobs = []
         for m in todo:
@@ -161,4 +161,4 @@ def main(force):
 
 
 if __name__ == "__main__":
-    main("--force" in sys.argv)
+    main()

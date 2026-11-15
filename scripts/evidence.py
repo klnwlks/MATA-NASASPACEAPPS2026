@@ -219,7 +219,7 @@ def coherence(c):
     z = np.load(f"{EV}/coherence.npz")
     ref, sec = [str(r) for r in z["reference"]], [str(s) for s in z["secondary"]]
     F, (hc, wc) = int(z["factor"]), tuple(int(x) for x in z["shape"])
-    files = [f"{EV}/coh/{str(n)}.npy" for n in z["files"]]
+    files = [f"{EV}/coh/{n}" for n in z["files"]]
     gaps = [gap_class(r, s) for r, s in zip(ref, sec)]
     dry = [i for i in range(len(ref)) if ref[i][4:6] in ("02", "03", "04") and sec[i][4:6] in ("02", "03", "04")]
     classes = {g: [i for i in dry if gaps[i] == g] for g in set(gaps)}

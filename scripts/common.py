@@ -24,9 +24,12 @@ from rasterio.features import rasterize
 from rasterio.transform import Affine, from_origin
 from rasterio.warp import transform_bounds, transform_geom
 
-BARANGAYS = "public/data/barangays.geojson"
-FLOODS = "public/data/floods"
-CACHE = "/home/lukas/mata-cache"
+# A named province gets its own inputs, outputs and cache; the default preserves the running Laguna job.
+# The current classifier still has Laguna-specific DEM and connectivity; namespacing alone does not enable another province.
+PROVINCE = os.environ.get("MATA_PROVINCE")
+BARANGAYS = f"public/data/provinces/{PROVINCE}/barangays.geojson" if PROVINCE else "public/data/barangays.geojson"
+FLOODS = f"public/data/floods/{PROVINCE}" if PROVINCE else "public/data/floods"
+CACHE = f"/home/lukas/mata-cache/{PROVINCE}" if PROVINCE else "/home/lukas/mata-cache"
 BUFFER_DEG, PX = 0.01, 10.31
 CROP_PAD_PX = 20  # municipality crops: its barangays' pixel extent plus this margin
 START, END = "2024-11-15", "2026-11-15"

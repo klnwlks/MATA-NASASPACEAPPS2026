@@ -103,64 +103,47 @@ class Ctx:
         self.munis[m]["frames"][fi][key] = rel
 
 
-def opera(frames, ids, n_bgy, px_ha, permanent):
-    z = np.load(f"{TMP}/opera.npz")
-    wtr, utc = z["wtr"], [str(u) for u in z["utc"]]
-    out = {b: {"waterHa": [], "vegHa": []} for b in range(1, n_bgy + 1)}
-    for f in frames:
-        same = [k for k, u in enumerate(utc) if abs((t(u) - t(f["utc"])).total_seconds()) < 120]
-        m = np.full(ids.shape, OPERA_FILL, "uint8")
-        for k in same:
-            m = np.where((m == OPERA_FILL) & (wtr[k] != OPERA_FILL), wtr[k], m)
-        for b in out:
-            sel = (ids == b) & ~permanent
-            seen = (m[sel] != OPERA_FILL).mean() if sel.any() else 0
-            out[b]["waterHa"].append(round(float(((m == OPERA_WATER) & sel).sum() * px_ha), 1) if seen > 0.5 else None)
-            out[b]["vegHa"].append(round(float(((m == OPERA_VEG) & sel).sum() * px_ha), 1) if seen > 0.5 else None)
-    return out
+def opera(c):
+    z = np.load(f"{EV}/opera.npz")
+    utc = [str(u) for u in z["utc"]]
+    water, veg, seen = z["water_ha"], z["veg_ha"], z["seen"]
+    flags, details = {}, {}
+    for b in c.rec:
+        w, v = [], []
+        for f in c.frames:
+            k = [i for i, u in enumerate(utc) if abs((t(u) - t(f["utc"])).total_seconds()) < 120 and seen[i, b] > OPERA_SEEN]
+            if k:  # same pass can come from several granules; first one that saw the barangay
+                w.append(round(float(water[k[0], b]), 1)), v.append(round(float(veg[k[0], b]), 1))
+            else:
+                w.append(None), v.append(None)
+        total = [None if x is None else x + y for x, y in zip(w, v)]
+        flags[b] = flagged(total, c.frames)
+        details[b] = [None if x is None else f"{x} ha water · {y} ha flooded vegetation" for x, y in zip(w, v)]
+    c.set_evidence("opera", "NASA OPERA DSWx-S1", flags, details,
+                   "NASA OPERA DSWx-S1 v1 (JPL), same pass; open water plus inundated vegetation, outside our permanent water; flagged at >= 2 ha and >= 3x its own dry-season noise")
+
+
+SOURCES = {"opera": opera}
 
 
 def main():
-    m = json.load(open(MANIFEST))
-    c = np.load(f"{TMP}/classes.npz")
-    T, shape = Affine(*c["transform"]), c["classes"].shape[1:]
-    permanent = c["classes"][0] == PERMANENT
-    px_ha = (abs(T.a) * 0.97) ** 2 / 1e4
-    feats = json.load(open("public/data/barangays.geojson"))["features"]
-    ids = rasterize([(transform_geom("EPSG:4326", "EPSG:3857", f["geometry"]), i + 1) for i, f in enumerate(feats)], out_shape=shape, transform=T, dtype="int16")
-    dry_idx = [i for i, f in enumerate(m["frames"]) if f["utc"][5:7] in ("02", "03", "04")]
-    psgc = {i + 1: f["properties"]["psgc"] for i, f in enumerate(feats)}
-    for rec in m["barangays"].values():
-        rec["evidence"] = {}
-    for f in m["frames"]:
-        f.pop("nisarFile", None), f.pop("coherenceFile", None)
-    for d in ("nisar", "coherence"):
-        shutil.rmtree(f"{FRAMES}/{d}", ignore_errors=True)
-
-    if os.path.exists(f"{TMP}/opera.npz"):
-        for b, v in opera(m["frames"], ids, len(feats), px_ha, permanent).items():
-            total = [None if w is None else w + g for w, g in zip(v["waterHa"], v["vegHa"])]
-            detail = [None if w is None else f"{w} ha water · {g} ha flooded vegetation" for w, g in zip(v["waterHa"], v["vegHa"])]
-            m["barangays"][psgc[b]]["evidence"]["opera"] = {"label": "NASA OPERA DSWx-S1", "flagged": flagged(total, dry_idx), "detail": detail}
-        m["method"]["opera"] = "NASA OPERA DSWx-S1 v1 (JPL), same pass; open water plus inundated vegetation, outside our permanent water; flagged at >= 2 ha and >= 3x its own dry-season noise"
-
-    if os.path.exists(f"{TMP}/nisar.npz"):
-        for b, v in nisar(m["frames"], ids, px_ha, permanent).items():
-            m["barangays"][psgc[b]]["evidence"]["nisar"] = {"label": "NISAR L-band", **v}
-        m["method"]["nisar"] = f"NISAR GCOV HV darkening >= 3 dB against low-lake acquisitions (before {NISAR_LOW_LAKE_UNTIL}) of the same track; flagged at >= 2 ha and >= 3x the darkening rate more than 2 km from the lake; nearest acquisition within {NISAR_DAYS} days"
-
-    if os.path.exists(f"{TMP}/coherence.npz"):
-        lc = np.zeros(shape, "uint8")
-        with rasterio.open(WC) as src:
-            reproject(rasterio.band(src, 1), lc, dst_transform=T, dst_crs="EPSG:3857", resampling=Resampling.nearest)
-        for b, v in coherence(m["frames"], ids, px_ha, permanent, lc == BUILT).items():
-            m["barangays"][psgc[b]]["evidence"]["coherence"] = {"label": "InSAR coherence, built-up", **v}
-        m["method"]["coherence"] = f"ASF HyP3 INSAR_ISCE_MULTI_BURST, consecutive track-32 pairs ending at the pass; built-up pixels {COH_DROP} or more below their dry-season median coherence; flagged at >= 2 ha and >= 3x the same loss on built-up land 2 km inland"
-
-    json.dump(m, open(MANIFEST, "w"), separators=(",", ":"))
-    for rec in m["barangays"].values():
-        ev = rec["evidence"]
-        print(rec["name"][:14].ljust(14), {k: sum(x or 0 for x in v["flagged"]) for k, v in ev.items()})
+    c = Ctx()
+    for m, mf in c.munis.items():
+        for rec in mf["barangays"].values():
+            rec["evidence"] = {}
+        for fr in mf["frames"]:
+            fr.pop("nisarFile", None), fr.pop("coherenceFile", None)
+        for d in ("nisar", "coherence"):
+            shutil.rmtree(f"{FLOODS}/{m}/{d}", ignore_errors=True)
+    for name, fn in SOURCES.items():
+        if not os.path.exists(f"{EV}/{name}.npz"):
+            print(name, "skipped: no input")
+            continue
+        fn(c)
+        print(name, "done;", sum(sum(x or 0 for x in r["evidence"][name]["flagged"]) for r in c.rec.values() if name in r["evidence"]), "flagged barangay-passes")
+    for m, info in c.index["municipalities"].items():
+        json.dump(c.munis[m], open(f"{FLOODS}/{info['manifest']}", "w"), separators=(",", ":"))
+    json.dump(c.index, open(f"{FLOODS}/index.json", "w"), separators=(",", ":"))
 
 
 if __name__ == "__main__":

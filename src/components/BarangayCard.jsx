@@ -29,8 +29,9 @@ function Observations({ rec, frame, frames, onFrame }) {
         <span className={`ml-auto rounded-lg px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
       </div>
       {rec.seenBy[frame].length > 0 && <p className="mt-1 text-xs text-cobalt-ink">Seen by {sources(rec.seenBy[frame])}</p>}
-      <p className="mt-1 font-mono text-sm">Open water: {rec.floodHa[frame]} ha{rec.floodHaRange?.[frame] && ` (range ${rec.floodHaRange[frame][0]}–${rec.floodHaRange[frame][1]})`} · {rec.lowConfidenceHa[frame]} ha low-confidence</p>
+      <p className="mt-1 font-mono text-sm">Flood-signal area: {rec.floodHa[frame]} ha{rec.floodHaRange?.[frame] && ` (range ${rec.floodHaRange[frame][0]}–${rec.floodHaRange[frame][1]})`} · {rec.lowConfidenceHa[frame]} ha low-confidence</p>
       {rec.floodHaRange && <p className="text-xs text-muted">The range reruns the detection with stricter and looser thresholds; a wide range means the call is fragile.</p>}
+      <p className="text-xs text-muted">A barangay is flagged when the high-confidence area reaches 2 ha and three times its same-track dry-season noise, with at least 25% visible.</p>
       <p className="text-xs text-muted">Radar sees {seen} % of this barangay as open ground. Buildings and tree cover can hide floodwater. Without a multi-year seasonal reference, agricultural water can resemble flooding; signals are preliminary, not ground-verified.</p>
       <SecondOpinions evidence={rec.evidence} frame={frame} />
       <h3 className="mt-3 text-sm font-medium text-cobalt-ink">Flood-signal sequences, {frames.length} passes</h3>

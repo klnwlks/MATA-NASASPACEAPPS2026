@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { buildStyle, HOME_VIEW, SHADOW_BUCKETS } from './style.js'
 import { addBoundaryLayers, setSelection } from './boundaries.js'
 import { addTreeLayer } from './trees.js'
-import { addWaterLayer, floodRise } from './water.js'
+import { addWaterLayer, floodStage } from './water.js'
 import { applySun } from './sun.js'
 
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -125,7 +125,7 @@ export default function MapStage({ barangays, floods, frame, selectedId, show, f
     const apply = () => {
       water.current ??= addWaterLayer(map, floods.corners, `${window.location.origin}${import.meta.env.BASE_URL}`).catch((e) => console.error(e))
       water.current.then((w) => {
-        w?.set(f.url, floodRise(floods.lake, f.utc))
+        w?.set(f.url, floodStage(floods.lake, f.utc))
         w?.overlay('coherence', f.coherenceUrl, show.coherence)
         w?.overlay('nisar', f.nisarUrl, show.nisar)
       })

@@ -2,7 +2,10 @@
 // extrusions and trees, so roofs and crowns above the surface stay dry and the parts below it read as submerged.
 // Cost: one 32k-vertex mesh, a texture swap per frame, a cheap fragment shader. Ripples repaint at RIPPLE_FPS only for
 // RIPPLE_MS after a frame swap or camera move: playback swaps every 900 ms so it ripples throughout, an idle map draws nothing.
-// The surface height is a visual cue (lake stage above its two-year low, see floodRise), not measured depth.
+// Water depth is the Laguna de Bay stage at the frame time (DAHITI altimetry, above the geoid) minus the GLO-30 ground
+// (same datum): a water table over the whole frame, deeper where the ground is lower. Where the ground is above the stage
+// (inland paddies, not lake-fed) nothing measured constrains the depth, so a thin film is drawn. GLO-30 is a ~30 m surface
+// model with metre-scale error, so depths are indicative, and canopy or roofs read shallower than the true ground.
 import { BufferAttribute, Camera, Color, DoubleSide, InstancedBufferAttribute, InstancedBufferGeometry, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector2, Vector3, Vector4, WebGLRenderer } from 'three'
 import { MercatorCoordinate } from 'maplibre-gl'
 
@@ -23,16 +26,15 @@ export function setWaterLight(p, sun) {
   light.uAmb.value = p.ambient / 1.3
 }
 
-// Metres of surface above the ground: 0.3 m plus the lake stage at the frame time over the series low.
-export function floodRise(lake, utc) {
+// Lake surface elevation (m above the geoid) at the frame time, interpolated between altimetry passes; null without data.
+export function floodStage(lake, utc) {
   const pts = lake?.points
-  if (!pts?.length) return 0.5
+  if (!pts?.length) return null
   const t = Date.parse(utc)
   const next = pts.findIndex((p) => Date.parse(p.utc) >= t)
   const [a, b] = [pts[Math.max(next - 1, 0)], next === -1 ? pts.at(-1) : pts[next]]
   const span = Date.parse(b.utc) - Date.parse(a.utc)
-  const stage = span > 0 ? a.m + ((b.m - a.m) * (t - Date.parse(a.utc))) / span : b.m
-  return 0.3 + stage - Math.min(...pts.map((p) => p.m))
+  return span > 0 ? a.m + ((b.m - a.m) * (t - Date.parse(a.utc))) / span : b.m
 }
 
 // Terrarium tiles around the frame stitched into one metres grid.
@@ -66,14 +68,15 @@ function surface(dem, nw, se, origin, s) {
 
 const VERT = /* glsl */ `
 attribute float elev, slice;
-uniform float uEx, uRise;
+uniform float uEx, uStage, uFilm;
 varying vec3 vW;
 varying vec2 vUv;
-varying float vS;
+varying float vS, vD;
 void main() {
   vUv = vec2(uv.x, 1.0 - uv.y);
   vS = slice;
-  vW = vec3(position.xy, elev * uEx + uRise * slice);
+  vD = max(uStage, elev + uFilm) - elev; // depth in metres, never below the film
+  vW = vec3(position.xy, (elev + vD * slice) * uEx);
   gl_Position = projectionMatrix * vec4(vW, 1.0);
 }`
 
@@ -94,32 +97,31 @@ vec3 field(vec2 uv) {
     s += wt * vec3(step(0.05, t), step(0.4, t), step(0.76, t));
   }
   return s;
+}
+// Unknown-veil coverage. Dry pixels scattered inside it are noise at this scale: average a ring 3 texels out to close holes up to ~4 px.
+float veilCover(vec2 uv) {
+  vec2 d = 3.0 / uSize;
+  vec3 F = field(uv);
+  float seen = (F.x + field(uv + vec2(d.x, 0.0)).x + field(uv - vec2(d.x, 0.0)).x + field(uv + vec2(0.0, d.y)).x + field(uv - vec2(0.0, d.y)).x) / 5.0;
+  return smoothstep(0.4, 0.7, seen) * (1.0 - smoothstep(0.35, 0.65, F.y));
 }`
 // Mask alpha is the frame's class: 215 flood, 170 low confidence, 70 unknown veil (scripts/flood_summary.py).
 const FRAG = MASK + /* glsl */ `
 uniform vec3 uEye, uSky, uHorizon, uSunDir;
 uniform float uTime, uSun, uAmb;
 varying vec3 vW;
-varying float vS;
+varying float vS, vD;
 void main() {
   vec3 F = field(vUv);
   float wet = F.y, sure = F.z;
   float edge = smoothstep(0.35, 0.65, wet);
   if (vS < 0.99) { // lower slices of the water column: a faint tint so a sideways view sees a filled body, not a floating sheet
     if (edge < 0.01) discard;
-    gl_FragColor = vec4(vec3(0.03, 0.28, 0.6) * uAmb, 0.16 * edge);
+    gl_FragColor = vec4(mix(vec3(0.1, 0.5, 0.62), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD)) * uAmb, 0.16 * edge);
     #include <colorspace_fragment>
     return;
   }
-  if (edge < 0.01) {
-    // Dry pixels scattered inside the veil are noise at this scale: average a ring 3 texels out to close holes up to ~4 px.
-    vec2 d = 3.0 / uSize;
-    float seen = (F.x + field(vUv + vec2(d.x, 0.0)).x + field(vUv - vec2(d.x, 0.0)).x + field(vUv + vec2(0.0, d.y)).x + field(vUv - vec2(0.0, d.y)).x) / 5.0;
-    float veil = smoothstep(0.4, 0.7, seen);
-    if (veil < 0.01) discard;
-    gl_FragColor = vec4(vec3(0.19), 0.27 * veil);
-    return;
-  }
+  if (edge < 0.01) discard; // the unknown veil is its own ground-level mesh: this one only carries water
   float conf = smoothstep(0.3, 0.7, sure / wet); // low-confidence water is one solid patch, paler and fainter
   vec3 to = uEye - vW;
   float dist = length(to);
@@ -131,25 +133,26 @@ void main() {
   vec3 r = reflect(-v, n);
   float fres = 0.2 + 0.8 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
   vec3 mirror = mix(uHorizon, uSky, clamp(r.z * 1.5, 0.0, 1.0));
-  vec3 col = mix(vec3(0.03, 0.28, 0.6) * uAmb, mirror, fres) + vec3(1.0, 0.93, 0.8) * pow(max(dot(r, uSunDir), 0.0), 220.0) * uSun;
+  vec3 col = mix(mix(vec3(0.1, 0.5, 0.62), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD)) * uAmb, mirror, fres) + vec3(1.0, 0.93, 0.8) * pow(max(dot(r, uSunDir), 0.0), 220.0) * uSun;
   col = mix(col, vec3(0.2, 0.6, 0.7) * uAmb, max(1.0 - smoothstep(0.65, 1.0, wet), (1.0 - conf) * 0.6) * 0.5); // paler where shallow or unsure
   col = mix(col, uHorizon, smoothstep(4000.0, 12000.0, dist)); // hazes out with the sky
   gl_FragColor = vec4(col, mix(0.88, 0.97, fres) * edge * mix(0.6, 1.0, conf));
   #include <colorspace_fragment>
 }`
 
-// Overlays are one class (alpha > 0), so the "any" channel of field() is their coverage.
+// Flat-colour layers: the unknown veil (uVeil) or a one-class evidence overlay. Lower slices are a quarter of the top alpha.
 const FLAT = MASK + /* glsl */ `
 uniform vec3 uColor;
+uniform float uAlpha, uVeil;
 varying float vS;
 void main() {
-  float a = smoothstep(0.35, 0.65, field(vUv).x);
+  float a = uVeil > 0.5 ? veilCover(vUv) : smoothstep(0.35, 0.65, field(vUv).x);
   if (a < 0.01) discard;
-  gl_FragColor = vec4(uColor, (vS < 0.99 ? 0.2 : 0.78) * a); // faint lower slices give the column a body, like the water
+  gl_FragColor = vec4(uColor, uAlpha * (vS < 0.99 ? 0.25 : 1.0) * a);
   #include <colorspace_fragment>
 }`
 
-// Resolves once the layer exists: { set(url, rise) } swaps the frame and the surface height.
+// Resolves once the layer exists: { set(url, stage) } swaps the frame and the lake stage; overlay() drives evidence layers.
 export async function addWaterLayer(map, corners, root) {
   const [nw, se] = [MercatorCoordinate.fromLngLat(corners[0], 0), MercatorCoordinate.fromLngLat(corners[2], 0)]
   const dem = await loadDem(root, nw, se)
@@ -158,7 +161,7 @@ export async function addWaterLayer(map, corners, root) {
   const origin = MercatorCoordinate.fromLngLat(map.getCenter(), 0)
   const s = origin.meterInMercatorCoordinateUnits()
   const toLocal = new Matrix4().makeTranslation(origin.x, origin.y, 0).scale(new Vector3(s, -s, s))
-  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uRise: { value: 0.5 } } })
+  const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uStage: { value: -1000 }, uFilm: { value: 0.1 } } })
   const base = surface(dem, nw, se, origin, s)
   // The surface drawn once per slice, from just above the ground to the top, so the water has a body.
   const volume = Object.assign(new InstancedBufferGeometry().copy(base), { instanceCount: SLICES }) // copy() would leave it undefined and draw nothing
@@ -186,13 +189,17 @@ export async function addWaterLayer(map, corners, root) {
   }
   const overlays = Object.fromEntries(
     [['coherence', '#B7791F'], ['nisar', '#0E9DB8']].map(([key, hex]) => {
-      const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uEx: u.uEx, uRise: u.uRise } })
+      const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uAlpha: { value: 0.78 }, uVeil: { value: 0 }, uEx: u.uEx, uStage: { value: -1000 }, uFilm: { value: 0.3 } } }) // evidence layers carry no depth: a thin slab
       const o = new Mesh(volume, m)
       Object.assign(o, { frustumCulled: false, visible: false, renderOrder: 1 })
       scene.add(o)
       return [key, { mat: m, mesh: o, url: null }]
     }),
   )
+  // Unknown (no data, steep, radar-blind) stays on the ground: it shares the frame's mask and carries no water depth.
+  const veil = new Mesh(volume, new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: u.uMask, uSize: u.uSize, uColor: { value: new Color('#787878') }, uAlpha: { value: 0.15 }, uVeil: { value: 1 }, uEx: u.uEx, uStage: { value: -1000 }, uFilm: { value: 0.05 } } }))
+  Object.assign(veil, { frustumCulled: false, renderOrder: 1 })
+  scene.add(veil)
   // Each repaint redraws the whole map (terrain, imagery, buildings, trees), so ripples run only while something changes.
   let until = 0
   const wake = () => (until = performance.now() + RIPPLE_MS)
@@ -223,7 +230,7 @@ export async function addWaterLayer(map, corners, root) {
       map.off('move', wake)
       base.dispose()
       volume.dispose()
-      for (const m of [mat, ...Object.values(overlays).map((o) => o.mat)]) {
+      for (const m of [mat, veil.material, ...Object.values(overlays).map((o) => o.mat)]) {
         m.uniforms.uMask.value?.dispose()
         m.dispose()
       }
@@ -231,7 +238,7 @@ export async function addWaterLayer(map, corners, root) {
   })
 
   return {
-    set: (url, rise) => swap(u, url, () => ((u.uRise.value = rise), (visible = true), wake())),
+    set: (url, stage) => swap(u, url, () => ((u.uStage.value = stage ?? -1000), (visible = true), wake())),
     // Evidence overlay (coherence, nisar): same smoothed mask, flat colour, hidden when its source has no pass here.
     overlay(key, url, on) {
       const o = overlays[key]

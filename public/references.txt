@@ -1,0 +1,34 @@
+MATA: Tanaw — project references
+
+NASA DATA AND RESOURCES
+- NASA JPL OPERA DSWx-S1 v1, via NASA Earthdata / PO.DAAC: surface-water and inundated-vegetation classifications, used as secondary evidence alongside Sentinel-1. https://www.jpl.nasa.gov/go/opera/products/dswx-product-suite/
+- NASA–ISRO NISAR L2 GCOV V1 and provisional V1, via Alaska Satellite Facility (ASF) DAAC: L-band HV backscatter darkening, used as secondary evidence where acquisitions are available. Provisional data may be reprocessed. https://search.asf.alaska.edu/  https://nisar.jpl.nasa.gov/
+- ASF HyP3 INSAR_ISCE_MULTI_BURST, using Copernicus Sentinel-1: interferometric coherence loss on built-up land, a possible flooding indicator. https://hyp3-docs.asf.alaska.edu/
+
+OTHER DATA AND MAP RESOURCES
+- Copernicus Sentinel-1 RTC VV, via Microsoft Planetary Computer; acquisition inventory from Copernicus Data Space: primary flood replay and historical reference. Contains modified Copernicus Sentinel data 2024–2026. https://planetarycomputer.microsoft.com/dataset/sentinel-1-rtc  https://dataspace.copernicus.eu/
+- Copernicus DEM GLO-30, 2021, via AWS Open Data: terrain and slope filtering. Contains modified Copernicus DEM GLO-30 data. https://registry.opendata.aws/copernicus-dem/
+- ESA WorldCover 2021 v200: land-cover classification used in processing. © ESA WorldCover project 2021, CC BY 4.0. https://esa-worldcover.org/
+- EOX Sentinel-2 cloudless 2024: contextual imagery, not a flood observation. Sentinel-2 cloudless 2024 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0; non-commercial use only. https://s2maps.eu/  https://creativecommons.org/licenses/by-nc-sa/4.0/
+- Philippines COD-AB v03, PSA/NAMRIA via OCHA Humanitarian Data Exchange: barangay boundaries; CC BY-IGO. https://data.humdata.org/dataset/cod-ab-phl
+- OpenStreetMap contributors: map features, building footprints and mapped trees, ODbL. Basemap tiles are supplied by OpenFreeMap using the OpenMapTiles schema; a Protomaps OSM-derived extract is also used for generated tree placement. Additional tree fill is decorative, not observed. https://www.openstreetmap.org/copyright  https://openfreemap.org/  https://openmaptiles.org/  https://protomaps.com/
+- DAHITI, DGFI-TUM, target 40866 (Laguna de Bay): lake-level altimetry shown as context. https://dahiti.dgfi.tum.de/40866/
+
+RESEARCH AND TEXT
+- NASA Space Apps 2026, “Dancing with the SARs”: project challenge. https://www.spaceappschallenge.org/2026/challenges/dancing-with-the-sars/
+- IGES, land-cover change and flood extent in the Pila–Victoria subwatershed: context for study-area selection. https://www.iges.or.jp/en/pub/land-cover-change-and-flood-extent-pila/en
+- University of the Philippines Los Baños, flood-prone areas of Santa Cruz: context for study-area selection. https://ersg.uplb.edu.ph/student-projects/areas-that-are-high-risk-of-flooding-in-santa-cruz-laguna/
+- Project research brief: Flood-Rewind-What-the-Typhoon-Left-Behind.pdf in the repository.
+
+CODE, TOOLS AND FONTS
+- Application: React and React DOM (https://react.dev/); MapLibre GL JS (https://maplibre.org/); Three.js (https://threejs.org/); Tailwind CSS (https://tailwindcss.com/); Lucide icons (https://lucide.dev/); Vite (https://vite.dev/); Oxlint (https://oxc.rs/). Exact JavaScript dependency versions and transitive packages are recorded in package-lock.json.
+- Processing: Python (https://www.python.org/), NumPy (https://numpy.org/), SciPy (https://scipy.org/), Rasterio (https://rasterio.readthedocs.io/), Shapely (https://shapely.readthedocs.io/), Pyogrio (https://pyogrio.readthedocs.io/), Pillow (https://python-pillow.org/), h5py (https://www.h5py.org/), fsspec (https://filesystem-spec.readthedocs.io/), PMTiles and mapbox-vector-tile.
+- Geist and Geist Mono by Vercel in collaboration with basement.studio, and Noto Sans by the Noto Project Authors: SIL Open Font License 1.1; copyright notices and license are in /fonts/OFL.txt. https://vercel.com/font  https://github.com/notofonts
+- Code was developed with AI assistance, including OpenAI Codex. Other tools used by team members should also be disclosed in the submission.
+
+DEMO VIDEO
+- Remotion, React, Three.js and React Three Fiber are used to create the demo; exact dependencies are in video/package-lock.json. https://www.remotion.dev/  https://r3f.docs.pmnd.rs/
+- Music: “Voltaic” by Kevin MacLeod (incompetech.com), CC BY 4.0; edited for the video. https://incompetech.com/  https://creativecommons.org/licenses/by/4.0/
+- Video map captures and derived data inherit the data and imagery sources above. Confirm the origin and permission of any additional imagery, footage, logo or audio before submission.
+
+Detailed data versions, transformations, limitations and licenses: /data/PROVENANCE.md. The project team must verify permissions for assets whose origin is not documented and add any other tools or materials used by team members before submitting. Attribution alone does not grant permission.

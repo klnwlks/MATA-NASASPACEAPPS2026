@@ -14,15 +14,16 @@ export default function Credits() {
       {open && (
         <section id="credits-note" className="pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl bg-chalk p-4 shadow-float">
           <p className="flex items-center gap-2 text-sm font-medium"><span className="grid size-8 place-items-center rounded-lg bg-amber-tint text-amber-ink"><ShieldAlert aria-hidden size={17} /></span>Not an official hazard map</p>
-          <p className="mt-2 text-xs text-muted">© OpenStreetMap contributors</p>
+          <p className="mt-2 text-xs text-muted">© <a className="underline underline-offset-2" href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · OpenFreeMap · OpenMapTiles</p>
           <p className="text-xs text-muted">Contains modified Copernicus DEM GLO-30</p>
-          <p className="text-xs text-muted">Sentinel-2 cloudless 2024 by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0</p>
+          <p className="text-xs text-muted">Sentinel-2 cloudless 2024 by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2024), <a className="underline underline-offset-2" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></p>
           <p className="text-xs text-muted">NAMRIA, PSA via OCHA COD-AB (CC BY-IGO)</p>
           <p className="text-xs text-muted">Contains modified Copernicus Sentinel-1 data 2024–2026, RTC via Microsoft Planetary Computer</p>
           <p className="text-xs text-muted">© ESA WorldCover project 2021, CC BY 4.0</p>
           <p className="text-xs text-muted">Lake level: DAHITI, DGFI-TUM (satellite altimetry)</p>
           <p className="text-xs text-muted">InSAR coherence: ASF HyP3 (contains modified Copernicus Sentinel data 2024–2026, processed by ASF DAAC)</p>
           <p className="text-xs text-muted">OPERA DSWx-S1 (NASA JPL) and NISAR GCOV (NASA/ISRO, provisional and V1) via NASA Earthdata</p>
+          <p className="mt-2 text-xs"><a className="text-cobalt underline underline-offset-2" href={`${import.meta.env.BASE_URL}references.txt`}>Project references and licenses</a></p>
         </section>
       )}
       <button

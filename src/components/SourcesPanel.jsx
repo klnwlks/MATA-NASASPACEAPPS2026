@@ -36,6 +36,7 @@ export default function SourcesPanel({ onClose }) {
           </div>
         ))}
       </dl>
+      <a className="mt-3 text-sm text-cobalt underline underline-offset-2" href={`${import.meta.env.BASE_URL}references.txt`}>Project references and licenses</a>
     </section>
   )
 }

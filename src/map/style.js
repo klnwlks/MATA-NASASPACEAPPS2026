@@ -13,7 +13,7 @@ const width = (z12, z18) => ['interpolate', ['exponential', 2], ['zoom'], 12, z1
 const ROUND = { 'line-cap': 'round', 'line-join': 'round' }
 const ROOF_M = 0.4
 const HEIGHT = ['coalesce', ['get', 'render_height'], SCHEMATIC_HEIGHT_M]
-const BUILDING = ['!', ['get', 'hide_3d']]
+const BUILDING = ['!=', ['get', 'hide_3d'], true]
 const AOI = [120.925, 13.883, 121.715, 14.676] // province terrain and basemap bounds, rounded outward
 // [layer id, filter, representative height in m]: one shadow offset per height band (see sun.js).
 export const SHADOW_BUCKETS = [

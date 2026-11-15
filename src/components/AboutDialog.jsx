@@ -55,6 +55,8 @@ export default function AboutDialog({ onClose, floods }) {
           Built by Team Masasarap in Manila for the NASA Space Apps challenge “Dancing with the SARs”: {TEAM.slice(0, -1).join(', ')} and {TEAM.at(-1)}.
         </p>
 
+        <p className="mt-4 text-sm leading-relaxed text-muted">Code developed with AI assistance.</p>
+
         <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:mt-6">
           <p className="text-xs text-muted">Passes are not daily and can miss floods. Not an official hazard map.</p>
           <button type="button" data-primary onClick={() => dialog.current.close()} className="flex items-center gap-2 rounded-xl bg-cobalt px-4 py-2.5 text-sm font-medium text-white hover:bg-cobalt-ink">

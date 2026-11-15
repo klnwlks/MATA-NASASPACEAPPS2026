@@ -12,7 +12,7 @@ function Row({ icon: Icon, tone, label, children, mono }) {
   )
 }
 
-const STATE = { 1: ['Flooded', 'bg-cobalt text-white'], 0: ['No flood seen', 'bg-page text-ink'], [-1]: ['Unknown', 'bg-page text-muted'] }
+const STATE = { 1: ['Flood signal', 'bg-cobalt text-white'], 0: ['No flood seen', 'bg-page text-ink'], [-1]: ['Unknown', 'bg-page text-muted'] }
 const SOURCE = { openWater: 'Sentinel-1 open water', opera: 'OPERA', coherence: 'InSAR coherence', nisar: 'NISAR' }
 const sources = (keys) => keys.map((k) => SOURCE[k] ?? k).join(', ')
 const range = (e) => (e.maxDays == null ? `at least ${e.minDays} d, upper bound unknown` : `between ${e.minDays} and ${e.maxDays} days`)
@@ -31,9 +31,9 @@ function Observations({ rec, frame, frames, onFrame }) {
       {rec.seenBy[frame].length > 0 && <p className="mt-1 text-xs text-cobalt-ink">Seen by {sources(rec.seenBy[frame])}</p>}
       <p className="mt-1 font-mono text-sm">Open water: {rec.floodHa[frame]} ha{rec.floodHaRange?.[frame] && ` (range ${rec.floodHaRange[frame][0]}–${rec.floodHaRange[frame][1]})`} · {rec.lowConfidenceHa[frame]} ha low-confidence</p>
       {rec.floodHaRange && <p className="text-xs text-muted">The range reruns the detection with stricter and looser thresholds; a wide range means the call is fragile.</p>}
-      <p className="text-xs text-muted">Radar sees {seen} % of this barangay as open ground. Buildings and tree cover hide floodwater from it and are left unknown, never dry. Low confidence: water on cropland or wetland away from the lake, often paddies.</p>
+      <p className="text-xs text-muted">Radar sees {seen} % of this barangay as open ground. Buildings and tree cover can hide floodwater. Without a multi-year seasonal reference, agricultural water can resemble flooding; signals are preliminary, not ground-verified.</p>
       <SecondOpinions evidence={rec.evidence} frame={frame} />
-      <h3 className="mt-3 text-sm font-medium text-cobalt-ink">Flooded runs, {frames.length} passes</h3>
+      <h3 className="mt-3 text-sm font-medium text-cobalt-ink">Flood-signal sequences, {frames.length} passes</h3>
       {rec.episodes == null ? <p className="text-sm text-muted">Duration estimates are unavailable for this record.</p> : rec.episodes.length ? (
         <ul className="mt-1 divide-y divide-line/70">
           {rec.episodes.map((e) => (

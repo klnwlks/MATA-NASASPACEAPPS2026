@@ -24,7 +24,6 @@ function Now({ rec, frame }) {
   const state = rec.state[frame]
   const ha = rec.floodHa[frame]
   const share = rec.areaHa ? (ha / rec.areaHa) * 100 : null
-  const r = rec.floodHaRange?.[frame]
   const maybe = rec.lowConfidenceHa[frame]
   const seen = Math.round(rec.visibleShare[frame] * 100)
   const [headline, sentence] =
@@ -35,7 +34,6 @@ function Now({ rec, frame }) {
     <>
       <p className="mt-2 text-base font-medium">{headline}</p>
       <p className="text-sm">{sentence}</p>
-      {state !== -1 && r && r[1] > r[0] && <p className="mt-1 text-sm text-muted">With stricter or looser settings the answer ranges from {fmt(r[0])} to {fmt(r[1])} ha{r[0] === 0 && state === 1 ? ', so treat this as a possible, not certain, flood' : ''}.</p>}
       {state !== -1 && maybe >= 0.5 && <p className="text-sm text-muted">Another {fmt(maybe)} ha looked wet but is too unclear to count.</p>}
       {state !== -1 && <p className="text-sm text-muted">Radar can see about {seen}% of the ground here; water under buildings or trees stays hidden.</p>}
     </>
@@ -73,7 +71,6 @@ function History({ rec, frames, onFrame }) {
   if (!flagged) return <p className="mt-3 text-sm text-muted">Radar did not flag flooding here on any of the {assessed} passes it could judge since {shortDate(frames[0].utc)}.</p>
   return (
     <>
-      <h3 className="mt-3 text-sm font-medium text-cobalt-ink">Flood history</h3>
       <p className="text-sm">Flagged on {flagged} of {assessed} judged passes{eps.length ? `, in ${plural(eps.length, 'separate episode')}` : ''}.</p>
       <ul className="mt-1 divide-y divide-line/70">
         {last && <li><button type="button" onClick={() => go(last.first)} className={`${fact} hover:text-cobalt`}><span className="text-muted">Most recent</span><span className="text-right font-medium">{shortDate(last.first)}{last.last !== last.first && ` – ${shortDate(last.last)}`}</span></button></li>}

@@ -18,7 +18,7 @@ export default function LakeChart({ lake, frames, frame }) {
   const now = Date.parse(frames[frame].utc)
   const near = pts.reduce((best, p) => (Math.abs(Date.parse(p.utc) - now) < Math.abs(Date.parse(best.utc) - now) ? p : best), pts[0])
   const gapDays = Math.round(Math.abs(Date.parse(near.utc) - now) / DAY)
-  const label = gapDays <= NEAR_DAYS ? `${near.m.toFixed(2)} m · ${gapDays ? `${gapDays} d from this pass` : 'same day'}` : `no reading within ${NEAR_DAYS} d`
+  const label = gapDays <= NEAR_DAYS ? `${near.m.toFixed(2)} m` : `no reading within ${NEAR_DAYS} d`
   const clip = (p) => Math.min(Math.max(x(Date.parse(p.utc)), PAD.l), W - PAD.r)
   return (
     <figure className="pointer-events-auto absolute bottom-[6.5rem] left-1/2 z-10 hidden w-[34rem] -translate-x-1/2 items-center gap-3 rounded-2xl bg-chalk px-3 py-2 shadow-float xl:flex">

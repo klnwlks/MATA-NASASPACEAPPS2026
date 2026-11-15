@@ -22,7 +22,6 @@ export default function AboutDialog({ onClose, floods }) {
     dialog.current.showModal()
     dialog.current.querySelector('[data-primary]').focus()
   }, [])
-  const passes = floods?.frames.length
 
   return (
     <dialog ref={dialog} onClose={onClose} aria-labelledby="about-title" className="about-dialog m-auto max-h-[calc(100dvh-2rem)] w-[min(36rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl bg-chalk p-0 text-ink shadow-float backdrop:bg-ink/55">
@@ -37,10 +36,6 @@ export default function AboutDialog({ onClose, floods }) {
           <span className="sm:hidden">MATA: Tanaw uses Sentinel-1 radar to replay how typhoon floods spread and receded in Philippine river basins, and how long each barangay stayed underwater. It helps LGUs and DRRM offices prioritize drainage, evacuation, and recovery.</span>
           <span className="hidden sm:inline">MATA: Tanaw (Mapping A Typhoon Aftermath: Tracking Affected Neighborhoods Across Waters) is a SAR-based decision-support web app. Using multi-temporal Sentinel-1 backscatter change detection, it replays how typhoon floods spread and receded in Philippine river basins and maps how long each barangay stayed underwater, with uncertainty ranges. Exposure indices and resident photo validation help LGUs and DRRM offices prioritize drainage, evacuation, and recovery.</span>
         </p>
-
-        <div className="mt-4 rounded-xl bg-cobalt-tint px-4 py-3 text-sm leading-relaxed text-cobalt-ink sm:mt-6">
-          <p>{passes ? `${passes} observed Sentinel-1 passes. ` : 'No observations loaded. '}{(floods?.coverageNote ?? 'Focus: Bay, Pila, Victoria, Santa Cruz').replace(/\.?$/, '.')} Pins with a halo have flood records.<span className="hidden sm:inline"> The rest are not mapped yet. Flood durations, exposure indices and photo validation are still to come.</span></p>
-        </div>
 
         <ul className="mt-4 space-y-2 border-t border-line pt-4 sm:mt-6 sm:space-y-2.5 sm:pt-6">
           {KEY.map(([cls, bg, name, note, short]) => (

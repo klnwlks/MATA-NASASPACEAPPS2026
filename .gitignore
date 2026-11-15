@@ -29,3 +29,9 @@ __pycache__
 # Credentials (NASA Earthdata, DAHITI): never commit
 .edl_token
 .dahiti_token
+
+# Scratch and video work
+.impeccable/
+5.svg
+video/
+film/out/

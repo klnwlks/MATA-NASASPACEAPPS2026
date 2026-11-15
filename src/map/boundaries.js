@@ -3,8 +3,9 @@ const COBALT_INK = '#1F3FA8'
 const SRC = 'barangays'
 const MUNI = 'municipalities'
 const PINS = 'municipality-points'
+const DATA_RED = '#D92D20'
 const none = ['==', ['get', 'psgc'], '']
-export const BOUNDARY_LAYERS = ['bgy-line', 'bgy-label', 'muni-line', 'muni-label']
+export const BOUNDARY_LAYERS = ['bgy-line', 'bgy-label', 'muni-line', 'muni-data-fill', 'muni-data-line', 'muni-label']
 export const LABEL_ZOOM = 11.5 // barangay names from here; below it the municipality names are drawn
 export const PIN_ZOOM = 12.5 // municipality pins and names give way to the barangays from here
 
@@ -45,6 +46,8 @@ export function addBoundaryLayers(map, { geojson, outlines, municipalities }, on
   map.addLayer({ id: 'bgy-unknown', type: 'fill', source: SRC, layout: hidden, paint: { 'fill-pattern': 'unknown-hatch', 'fill-opacity': 0 } })
   map.addLayer({ id: 'bgy-line', type: 'line', source: SRC, layout: line, paint: { 'line-color': COBALT, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 12, 1, 14, 1.5], 'line-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.45, 13, 0.85] } })
   map.addLayer({ id: 'muni-line', type: 'line', source: MUNI, layout: line, paint: { 'line-color': COBALT_INK, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.4, 12, 2.2], 'line-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.9, 14, 0.4] } })
+  map.addLayer({ id: 'muni-data-fill', type: 'fill', source: MUNI, filter: none, paint: { 'fill-color': DATA_RED, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.1, 13, 0] } })
+  map.addLayer({ id: 'muni-data-line', type: 'line', source: MUNI, filter: none, layout: line, paint: { 'line-color': DATA_RED, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 2, 12, 3.2], 'line-opacity': ['interpolate', ['linear'], ['zoom'], 11, 1, 14, 0.5] } })
   map.addLayer({ id: 'muni-sel-fill', type: 'fill', source: MUNI, filter: none, paint: { 'fill-color': COBALT, 'fill-opacity': 0.2 } })
   map.addLayer({ id: 'muni-sel-casing', type: 'line', source: MUNI, filter: none, layout: line, paint: { 'line-color': '#FFFFFF', 'line-width': 7 } })
   map.addLayer({ id: 'muni-sel-line', type: 'line', source: MUNI, filter: none, layout: line, paint: { 'line-color': COBALT_INK, 'line-width': 4 } })
@@ -114,4 +117,6 @@ export function setMunicipalitySelection(map, id) {
 export function setLabelMunicipalities(map, ids) {
   if (!map?.getLayer('bgy-label')) return
   map.setFilter('bgy-label', ['in', ['get', 'munipsgc'], ['literal', ids]])
+  const data = ids.length ? ['in', ['get', 'munipsgc'], ['literal', ids]] : none
+  for (const layer of ['muni-data-fill', 'muni-data-line']) map.setFilter(layer, data)
 }

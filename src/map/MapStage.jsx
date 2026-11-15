@@ -25,7 +25,7 @@ const TREES_ZOOM = 13
 const gate = (on, zoom, at) => (on ? zoom >= at - 0.5 : zoom >= at)
 const PIN_BASE = 'grid place-items-center rounded-full border-2 shadow-float'
 function stylePin(pin, name, mapped) {
-  pin.className = mapped ? `${PIN_BASE} size-10 border-white bg-cobalt text-white ring-4 ring-cobalt/30 hover:bg-cobalt-ink` : `${PIN_BASE} size-8 border-line bg-chalk text-muted hover:text-ink`
+  pin.className = mapped ? `${PIN_BASE} size-10 border-white bg-[#D92D20] text-white ring-4 ring-[#D92D20]/30 hover:bg-[#B42318]` : `${PIN_BASE} size-8 border-line bg-chalk text-muted hover:text-ink`
   pin.setAttribute('aria-label', mapped ? `${name}, municipality: observed flood runs` : `${name}, municipality: no observations loaded`)
 }
 

@@ -122,7 +122,7 @@ void main() {
   if (vS < 0.99) { // lower slices: a faint body inside, but where the mask ends they stack into a near-opaque wall, so the water reads as a block with depth
     if (edge < 0.01) discard;
     float wall = 1.0 - smoothstep(0.55, 0.92, wet);
-    vec3 deep = mix(vec3(0.1, 0.5, 0.62), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD));
+    vec3 deep = mix(vec3(0.16, 0.62, 0.5), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD));
     gl_FragColor = vec4(deep * mix(0.55, 0.9, vS) * uAmb, mix(0.05, 0.85, wall) * edge);
     #include <colorspace_fragment>
     return;
@@ -139,8 +139,8 @@ void main() {
   vec3 r = reflect(-v, n);
   float fres = 0.2 + 0.8 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
   vec3 mirror = mix(uHorizon, uSky, clamp(r.z * 1.5, 0.0, 1.0));
-  vec3 col = mix(mix(vec3(0.1, 0.5, 0.62), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD)) * uAmb, mirror, fres) + vec3(1.0, 0.93, 0.8) * pow(max(dot(r, uSunDir), 0.0), 220.0) * uSun;
-  col = mix(col, vec3(0.2, 0.6, 0.7) * uAmb, max(1.0 - smoothstep(0.65, 1.0, wet), (1.0 - conf) * 0.6) * 0.5); // paler where shallow or unsure
+  vec3 col = mix(mix(vec3(0.16, 0.62, 0.5), vec3(0.01, 0.1, 0.38), smoothstep(0.1, 2.5, vD)) * uAmb, mirror, fres) + vec3(1.0, 0.93, 0.8) * pow(max(dot(r, uSunDir), 0.0), 220.0) * uSun;
+  col = mix(col, vec3(0.3, 0.72, 0.55) * uAmb, max(1.0 - smoothstep(0.65, 1.0, wet), (1.0 - conf) * 0.6) * 0.5); // paler where shallow or unsure
   col = mix(col, uHorizon, smoothstep(4000.0, 12000.0, dist)); // hazes out with the sky
   gl_FragColor = vec4(col, mix(0.88, 0.97, fres) * edge * mix(0.6, 1.0, conf));
   #include <colorspace_fragment>

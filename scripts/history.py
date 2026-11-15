@@ -15,7 +15,8 @@ from common import CACHE, TRACKS, grid
 from floods import Q_MIN, Q_STEP, Q_NONE, SIG_STEP, Sas, province_bbox, quantise, read_blocks, rtc_items
 
 START, END = "2020-11-15", "2024-11-14"
-BLOCK_ROWS, CALC_ROWS, WORKERS = 128, 16, 3
+BLOCK_ROWS, CALC_ROWS = 128, 16
+WORKERS = int(os.environ.get("S1_HISTORY_WORKERS", "8"))
 
 
 def main(only):

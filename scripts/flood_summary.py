@@ -15,7 +15,7 @@ The pending index is not published until combine.py has written all states, keep
 Run after floods.py (any number of finished passes), then combine.py --primary-only:
   .venv/bin/python scripts/flood_summary.py
 """
-import json, os, time
+import json, os, sys, time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -48,6 +48,21 @@ def day(iso):
 
 def utc(d):
     return str(d)[:19] + "Z"  # whole seconds: every browser parses this ISO form
+
+def unprocessed_acquisitions(acquired, frames):
+    processed = {f"{f['utc'][:10].replace('-', '')}_{f['track']}" for f in frames}
+    return sorted(a for a in map(str, acquired) if f"{a.split(':')[0]}_{a.split(':')[2]}" not in processed)
+
+
+def refresh_acquisitions():
+    with open(f"{FLOODS}/index.json") as f, np.load(f"{CACHE}/grid.npz") as g:
+        index = json.load(f)
+        index["acquiredNotProcessed"] = unprocessed_acquisitions(g["acquired"], index["frames"])
+    tmp = f"{FLOODS}/index.json.tmp"
+    with open(tmp, "w") as f:
+        json.dump(index, f, separators=(",", ":"))
+    os.replace(tmp, f"{FLOODS}/index.json")
+    print(len(index["acquiredNotProcessed"]), "acquired passes not processed")
 
 
 def load_ids(T, shape):
@@ -90,8 +105,7 @@ def main():
     tag = f"{time.time_ns():x}"
     for f in frames:
         f["file"] = f"{f['id']}_{tag}.png"
-    processed = {f["id"] for f in frames}
-    acquired = sorted(a for a in map(str, g["acquired"]) if f"{a.split(':')[0]}:{a.split(':')[2]}" not in processed)
+    acquired = unprocessed_acquisitions(g["acquired"], frames)
 
 
     crops = muni_crops(ids, feats)
@@ -152,4 +166,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    refresh_acquisitions() if "--refresh-acquisitions" in sys.argv else main()

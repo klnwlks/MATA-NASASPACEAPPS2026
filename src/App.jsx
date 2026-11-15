@@ -24,7 +24,7 @@ export default function App() {
   const [show, setShow] = useState({ boundaries: true, buildings: true, coherence: true, nisar: true })
   const [fit, setFit] = useState(null)
   const [homeTick, setHomeTick] = useState(0)
-  const [clockOverride, setClockOverride] = useState(null) // Manila minutes the user dialled in; null follows the satellite pass
+  const [clockOverride, setClockOverride] = useState(null) // instant (ms) the user dialled in; null follows the satellite pass
   const passUtc = floods?.frames[frame]?.utc
   const pass = useMemo(() => (passUtc ? new Date(passUtc) : null), [passUtc])
   const [sweep, setSweep] = useState(null)
@@ -48,8 +48,23 @@ export default function App() {
       setSweep(null)
     }
   }, [pass, clockOverride])
-  const time = useMemo(() => sweep ?? (clockOverride == null ? (pass ?? manilaTime(15 * 60 + 30)) : manilaTime(clockOverride, pass ?? new Date())), [sweep, clockOverride, pass])
+  const time = useMemo(() => sweep ?? (clockOverride == null ? (pass ?? manilaTime(15 * 60 + 30)) : new Date(clockOverride)), [sweep, clockOverride, pass])
   const minutes = manilaMinutes(time)
+  // Picking a pass snaps the sun back to it; dialling a clock time shows the latest pass at or before that instant.
+  const goFrame = useCallback((i) => {
+    setClockOverride(null)
+    setFrame(i)
+  }, [])
+  const dialClock = useCallback(
+    (m) => {
+      const at = manilaTime(m, time)
+      setClockOverride(at.getTime())
+      const frames = floods?.frames ?? []
+      const i = frames.findLastIndex((f) => new Date(f.utc) <= at)
+      if (frames.length) setFrame(Math.max(0, i))
+    },
+    [time, floods],
+  )
 
   const report = useCallback((key, value) => setStatus((s) => (s[key] === value ? s : { ...s, [key]: value })), [])
 
@@ -95,11 +110,11 @@ export default function App() {
         <MapStage barangays={barangays} floods={floods} frame={frame} selectedId={selectedId} show={show} fit={fit} homeTick={homeTick} time={time} onSelect={select} onMunicipality={openMunicipality} onStatus={report} onMap={setMap} />
         <Navbar list={barangays?.list ?? []} frames={floods?.frames.length} boundariesReady={!!barangays} onSelect={select} />
         <Status status={status} />
-        {barangays && <BarangayCard list={barangays.list} floods={floods} frame={frame} selectedId={selectedId} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} onFrame={setFrame} />}
-        {municipality && <MunicipalityCard municipality={municipality} floods={floods} onFrame={setFrame} onClose={() => setMunicipality(null)} />}
-        <MapControls map={map} show={show} onShow={setShow} onHome={() => setHomeTick((t) => t + 1)} minutes={minutes} onMinutes={setClockOverride} followingPass={clockOverride == null && !!pass} onFollowPass={pass ? () => setClockOverride(null) : null} />
+        {barangays && <BarangayCard list={barangays.list} floods={floods} frame={frame} selectedId={selectedId} onClose={() => setSelectedId(null)} onLocate={(b) => setFit({ bounds: b.bounds })} onFrame={goFrame} />}
+        {municipality && <MunicipalityCard municipality={municipality} floods={floods} onFrame={goFrame} onClose={() => setMunicipality(null)} />}
+        <MapControls map={map} show={show} onShow={setShow} onHome={() => setHomeTick((t) => t + 1)} minutes={minutes} onMinutes={dialClock} followingPass={clockOverride == null && !!pass} onFollowPass={pass ? () => setClockOverride(null) : null} />
         <LakeChart lake={floods?.lake} frames={floods?.frames ?? []} frame={frame} />
-        <Timeline floods={floods} frame={frame} onFrame={setFrame} />
+        <Timeline floods={floods} frame={frame} onFrame={goFrame} />
         <Credits />
       </div>
     </div>

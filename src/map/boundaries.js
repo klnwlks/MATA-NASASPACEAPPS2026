@@ -1,5 +1,5 @@
-const COBALT = '#1F4FD8'
-const COBALT_INK = '#1F3FA8'
+const COBALT = '#FFF700'
+const COBALT_INK = '#CFC82D'
 const SRC = 'barangays'
 const MUNI = 'municipalities'
 const PINS = 'municipality-points'

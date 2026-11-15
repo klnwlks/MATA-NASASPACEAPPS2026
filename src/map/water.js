@@ -197,7 +197,7 @@ export async function addWaterLayer(map, corners, root) {
     })
   }
   const overlays = Object.fromEntries(
-    [['coherence', '#B7791F'], ['nisar', '#0E9DB8']].map(([key, hex]) => {
+    [['coherence', '#B7791F'], ['nisar', '#0EB871']].map(([key, hex]) => {
       const m = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FLAT, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uColor: { value: new Color(hex) }, uAlpha: { value: 0.78 }, uVeil: { value: 0 }, uEx: u.uEx, uStage: u.uStage, uFilm: { value: 0.3 }, uDepthEx: u.uDepthEx } }) // evidence layers ride the same water table, so they stand as tall as the water beside them
       const o = new Mesh(volume, m)
       Object.assign(o, { frustumCulled: false, visible: false, renderOrder: 1 })

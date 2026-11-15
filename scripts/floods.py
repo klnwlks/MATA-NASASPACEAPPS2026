@@ -116,14 +116,29 @@ def rtc_items(track, direction, start, end, bbox):
 def _warp(src, Tb, shape, resampling=Resampling.bilinear, dtype="float32"):
     """Warp the part of an open raster covering (Tb, shape) in EPSG:3857 onto that window."""
     dst = np.full(shape, np.nan if dtype == "float32" else 0, dtype)
-    with rasterio.open(src_path) as src:
-        b = transform_bounds("EPSG:3857", src.crs, transform.c, transform.f - shape[0] * PX, transform.c + shape[1] * PX, transform.f)
-        win = from_bounds(*b, src.transform).round_offsets().round_lengths()
-        a = src.read(1, window=win, boundless=True, fill_value=0).astype(dtype)
-        if dtype == "float32":
-            a[a <= 0] = np.nan
-        reproject(a, dst, src_transform=src.window_transform(win), src_crs=src.crs, dst_transform=transform, dst_crs="EPSG:3857", resampling=resampling, src_nodata=np.nan if dtype == "float32" else None)
+    b = transform_bounds("EPSG:3857", src.crs, Tb.c, Tb.f - shape[0] * PX, Tb.c + shape[1] * PX, Tb.f)
+    win = from_bounds(*b, src.transform).round_offsets().round_lengths()
+    win = Window(win.col_off - 2, win.row_off - 2, win.width + 4, win.height + 4)  # resampling margin
+    if win.col_off >= src.width or win.row_off >= src.height or win.col_off + win.width <= 0 or win.row_off + win.height <= 0:
+        return dst  # the window lies wholly outside this raster (DEM tiles)
+    inside = win.col_off >= 0 and win.row_off >= 0 and win.col_off + win.width <= src.width and win.row_off + win.height <= src.height
+    a = src.read(1, window=win, boundless=not inside, fill_value=0).astype(dtype)
+    if dtype == "float32":
+        a[a <= 0] = np.nan
+    reproject(a, dst, src_transform=src.window_transform(win), src_crs=src.crs, dst_transform=Tb, dst_crs="EPSG:3857", resampling=resampling, src_nodata=np.nan if dtype == "float32" else None)
     return dst
+
+
+def warp(path, Tb, shape, resampling=Resampling.bilinear, dtype="float32", tries=5):
+    # Hundreds of windows meet DNS blips and dropped connections; one must not end the run.
+    for attempt in range(tries):
+        try:
+            with rasterio.open(path) as src:
+                return _warp(src, Tb, shape, resampling, dtype)
+        except rasterio.errors.RasterioError:
+            if attempt == tries - 1:
+                raise
+            time.sleep(10 * (attempt + 1))
 
 
 def to_db(a, k=5):  # boxcar despeckle in linear power, then dB
@@ -132,8 +147,77 @@ def to_db(a, k=5):  # boxcar despeckle in linear power, then dB
     return np.where(ok, 10 * np.log10(np.maximum(num, 1e-6) / np.maximum(den, 1e-6)), np.nan).astype("float32")
 
 
-def otsu(x):
-    h, edges = np.histogram(x[np.isfinite(x)], 200)
+def block_db(src, T, W, r0, r1):
+    """Despeckled VV in dB of rows r0:r1 of the grid, read with PAD extra rows so the boxcar is exact at the block edges."""
+    n = r1 - r0 + 2 * PAD
+    a = _warp(src, T * Affine.translation(0, r0 - PAD), (n, W))
+    return to_db(a)[PAD:PAD + r1 - r0]
+
+
+def read_blocks(item, sas, T, shape, spans, tries=6):
+    """Mosaic each observation's slices in linear power before despeckling; uncovered pixels remain NaN."""
+    sources = []
+    try:
+        for r0, r1 in spans:
+            for attempt in range(tries):
+                try:
+                    if not sources:
+                        for part in item.get("slices", [item]):
+                            sources.append(rasterio.open(part["assets"]["vv"]["href"] + "?" + sas()))
+                    n = r1 - r0 + 2 * PAD
+                    transform = T * Affine.translation(0, r0 - PAD)
+                    mosaic = np.full((n, shape[1]), np.nan, "float32")
+                    for src in sources:
+                        a = _warp(src, transform, mosaic.shape)
+                        np.copyto(mosaic, a, where=~np.isfinite(mosaic) & np.isfinite(a))
+                    yield r0, r1, to_db(mosaic)[PAD:PAD + r1 - r0]
+                    break
+                except rasterio.errors.RasterioError:
+                    for src in sources:
+                        src.close()
+                    sources = []
+                    if attempt == tries - 1:
+                        raise
+                    time.sleep(10 * (attempt + 1))
+    finally:
+        for src in sources:
+            src.close()
+
+
+def load_scene(item, sas, T, shape):
+    out = np.empty(shape, "float16")
+    for r0, r1, blk in read_blocks(item, sas, T, shape, [(r, min(r + ROWS, shape[0])) for r in range(0, shape[0], ROWS)]):
+        out[r0:r1] = blk
+    return out
+
+
+def quantise(db):
+    q = np.round((db - Q_MIN) / Q_STEP)
+    return np.where(np.isfinite(q), np.clip(q, 0, Q_NONE - 1), Q_NONE).astype("uint8")
+
+
+def median_pair(srt, cnt):
+    """srt: (..., k) sorted ascending with the largest value as the no-data sentinel at the end; cnt: valid count per pixel.
+    Returns lo + hi of the middle pair (the median is half of it; equal when the count is odd). Garbage where cnt == 0."""
+    lo = np.maximum(cnt - 1, 0) // 2
+    hi = cnt // 2
+    take = lambda i: np.take_along_axis(srt, i[..., None], -1)[..., 0].astype("int32")
+    return take(lo) + take(hi)
+
+
+def otsu(s):
+    """Otsu threshold of a float16 raster, chunked; identical to np.histogram(finite values, 200) + the same criterion."""
+    lo, hi = np.inf, -np.inf
+    for a in range(0, s.shape[0], CHUNK):
+        x = s[a:a + CHUNK].astype("float32")
+        x = x[np.isfinite(x)]
+        if x.size:
+            lo, hi = min(lo, float(x.min())), max(hi, float(x.max()))
+    h = np.zeros(200, "int64")
+    for a in range(0, s.shape[0], CHUNK):
+        x = s[a:a + CHUNK].astype("float32")
+        h += np.histogram(x[np.isfinite(x)], 200, range=(lo, hi))[0]
+    edges = np.linspace(lo, hi, 201)
     c = (edges[:-1] + edges[1:]) / 2
     w0 = np.cumsum(h); w1 = w0[-1] - w0
     m0 = np.cumsum(h * c) / np.maximum(w0, 1); m1 = (np.sum(h * c) - np.cumsum(h * c)) / np.maximum(w1, 1)
@@ -141,29 +225,18 @@ def otsu(x):
 
 
 def acquisitions(track):
-    flt = (f"Collection/Name eq 'SENTINEL-1' and OData.CSC.Intersects(area=geography'SRID=4326;POINT(121.265 14.15)') and "
+    flt = (f"Collection/Name eq 'SENTINEL-1' and OData.CSC.Intersects(area=geography'SRID=4326;POINT({ACQUIRED_POINT[0]} {ACQUIRED_POINT[1]})') and "
            "Attributes/OData.CSC.StringAttribute/any(a:a/Name eq 'productType' and a/OData.CSC.StringAttribute/Value eq 'IW_GRDH_1S') and "
            f"Attributes/OData.CSC.IntegerAttribute/any(a:a/Name eq 'relativeOrbitNumber' and a/OData.CSC.IntegerAttribute/Value eq {track}) and "
            f"ContentDate/Start gt {START}T00:00:00.000Z and ContentDate/Start lt {END}T00:00:00.000Z")
-    names = [p["Name"] for p in get(CDSE + urllib.parse.urlencode({"$filter": flt, "$top": 200}))["value"]]
+    names = [p["Name"] for p in get(CDSE + urllib.parse.urlencode({"$filter": flt, "$top": 1000}))["value"]]
     return sorted({(n[17:25], n[:3], track) for n in names})  # (YYYYMMDD, platform, track)
 
 
-def load_track(track, direction, transform, shape, tok):
-    body = {"collections": ["sentinel-1-rtc"], "datetime": f"{START}T00:00:00Z/{END}T23:59:59Z", "limit": 500,
-            "intersects": {"type": "Point", "coordinates": [121.265, 14.15]}, "query": {"sat:relative_orbit": {"eq": track}, "sat:orbit_state": {"eq": direction}}}
-    items = sorted(get(f"{PC}/stac/v1/search", json.dumps(body).encode())["features"], key=lambda f: f["properties"]["datetime"])
-    dates = [f["properties"]["datetime"] for f in items]
-    # Streamed windows are cached in /tmp (RAM-backed here); delete vv_<track>.npz to re-stream.
-    cache = f"{OUT}/vv_{track}.npz"
-    if os.path.exists(cache) and list(np.load(cache)["dates"]) == dates:
-        stack = np.load(cache)["vv"]
-    else:
-        with ThreadPoolExecutor(4) as ex:
-            stack = np.stack(list(ex.map(lambda f: to_db(warp(f["assets"]["vv"]["href"] + "?" + tok, transform, shape)).astype("float16"), items)))
-        np.savez(cache, vv=stack, dates=np.array(dates))
-    print(track, direction, len(dates), "RTC scenes", dates[0][:10], "->", dates[-1][:10], flush=True)
-    return dates, [f["properties"]["platform"].upper() for f in items], stack
+def atomic_savez(path, compressed=False, **arrays):
+    tmp = f"{path}.tmp.npz"
+    (np.savez_compressed if compressed else np.savez)(tmp, **arrays)
+    os.replace(tmp, path)
 
 
 def main(only):

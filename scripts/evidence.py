@@ -1,51 +1,106 @@
-"""Second opinions per barangay and pass, added to public/data/floods/manifest.json.
+"""Second opinions per barangay and pass, added to the per-municipality manifests written by flood_summary.py.
 
 Sources, each judged against its own dry-season noise so no source borrows another's thresholds:
-  opera      NASA OPERA DSWx-S1 from the same track-32 pass: open water and inundated vegetation (opera.py)
-  coherence  ASF HyP3 InSAR coherence of the pair ending at this pass, over built-up pixels only (coherence.py)
-  nisar      NISAR L-band HH over built-up and vegetated pixels, nearest acquisition within NISAR_DAYS (nisar.py)
-A missing input file leaves that source out; a pass with no matching acquisition is null, never 0.
-Coherence loss and NISAR darkening are also drawn as patterned overlays (floods/coherence/, floods/nisar/).
-Run after flood_summary.py, then combine.py: .venv/bin/python scripts/evidence.py
+  opera      NASA OPERA DSWx-S1 from the same pass: open water and inundated vegetation (opera.py -> CACHE/ev/opera.npz)
+  coherence  ASF HyP3 InSAR coherence of the pair ending at this pass (track 32), over built-up pixels only (coherence.py)
+  nisar      NISAR L-band HV over built-up and vegetated land, nearest acquisition within NISAR_DAYS (nisar.py)
+A missing input file leaves that source out; a pass with no matching acquisition, or where a source saw under half of a
+barangay, is null, never 0. Same rules as the Bay run (2 ha floor, 3x noise, 6-day NISAR window, coherence baseline per gap
+class, built-up masks, 2 km inland control); the only plumbing differences are that dry-season noise is taken per track (two
+viewing geometries never share a noise level) and that the coherence rule is applied on the coarse coherence grid with
+nearest upsampling to the 10 m built-up mask (exact, through a per-cell table of built pixels per barangay).
+Coherence loss and NISAR darkening are also drawn as per-municipality overlays <munipsgc>/coherence/<YYYYMMDD>.png (amber)
+and <munipsgc>/nisar/<YYYYMMDD>.png (cyan), written only where non-empty; frames then carry coherenceFile / nisarFile.
+Run after flood_summary.py and opera.py / nisar.py / coherence.py, then combine.py:
+  .venv/bin/python scripts/evidence.py     (every source whose CACHE/ev file exists; the others are left out)
 """
-import json, os, shutil
-from datetime import datetime
-import numpy as np, rasterio
+import json, os, shutil, warnings
+from datetime import datetime, timezone
+import numpy as np
 from PIL import Image
-from rasterio.features import rasterize
 from rasterio.transform import Affine
-from rasterio.warp import transform_geom, reproject, Resampling
+from scipy.ndimage import distance_transform_edt
 
-TMP, MANIFEST, FRAMES = "/tmp/mata-floods", "public/data/floods/manifest.json", "public/data/floods"
+from common import CACHE, FLOODS, features, muni_crops, muni_mask, px_ha
+from flood_summary import FLOOR_HA, NOISE_FACTOR, load_ids
+
+EV = f"{CACHE}/ev"
 WC = "/vsicurl/https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N12E120_Map.tif"
-FLOOR_HA, NOISE_FACTOR = 2.0, 3.0  # same rule as flood_summary.py
-OPERA_WATER, OPERA_VEG, OPERA_FILL = 1, 3, 255
-PERMANENT = 2
-NISAR_DAYS, NISAR_LOW_LAKE_UNTIL, HV_DROP_DB, INLAND_M = 6, "2026-07-31", -3.0, 2000  # DAHITI: lake 1.1-1.2 m until late July 2026
-COH_DROP, BUILT, MIN_REF = -0.2, 50, 3  # coherence lost against same-baseline dry-season median; WorldCover built-up; reference pairs needed
+OPERA_SEEN = 0.5
+NISAR_DAYS, NISAR_SEEN, INLAND_M = 6, 0.5, 2000
+COH_DROP, BUILT, MIN_REF, COH_SEEN = -0.2, 50, 3, 0.5  # coherence lost against same-baseline dry-season median; WorldCover built-up; reference pairs needed
 AMBER, CYAN = (183, 121, 31, 200), (14, 157, 184, 200)  # design status amber; flood cyan
-
-
-def overlay(name, mask, rgba):
-    """Solid transparent PNG of a boolean mask on the flood grid; the viewer smooths its edges and keeps its colour."""
-    img = np.zeros((*mask.shape, 4), "uint8")
-    img[mask] = rgba
-    os.makedirs(os.path.dirname(f"{FRAMES}/{name}"), exist_ok=True)
-    Image.fromarray(img, "RGBA").save(f"{FRAMES}/{name}", optimize=True)
-    return name
+LAKE_STEP = 8  # the 2 km lake distance is measured on a grid this many times coarser: well under the threshold's precision
 
 
 def t(s):
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    d = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
-def flagged(values, dry_idx, floor=FLOOR_HA):
-    """1 where a per-pass value clears max(floor, 3x its dry-season 95th percentile); None stays None."""
-    dry = [values[i] for i in dry_idx if values[i] is not None]
-    if not dry:
-        return [None] * len(values)
-    limit = max(floor, NOISE_FACTOR * float(np.percentile(dry, 95)))
-    return [None if v is None else int(v >= limit) for v in values]
+def overlay(path, mask, rgba):
+    """Palette PNG, index 1 where mask: transparent elsewhere. The viewer smooths its edges and keeps its colour."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    img = Image.fromarray(mask.astype("uint8"), "P")
+    img.putpalette([0, 0, 0, 0, *rgba], "RGBA")
+    img.save(path, compress_level=9)
+
+
+def flagged(values, frames, dry_months=("02", "03", "04")):
+    """1 where a per-pass value clears max(floor, 3x the 95th percentile on dry-season passes of its own track); None stays None."""
+    out = [None] * len(values)
+    for tr in {f["track"] for f in frames}:
+        idx = [i for i, f in enumerate(frames) if f["track"] == tr]
+        dry = [values[i] for i in idx if values[i] is not None and frames[i]["utc"][5:7] in dry_months]
+        if not dry:
+            continue
+        limit = max(FLOOR_HA, NOISE_FACTOR * float(np.percentile(dry, 95)))
+        for i in idx:
+            out[i] = None if values[i] is None else int(values[i] >= limit)
+    return out
+
+
+class Ctx:
+    """Everything the three sources share: frames, grid, barangay ids and the places evidence is written to."""
+
+    def __init__(self):
+        self.index = json.load(open(f"{FLOODS}/index.json"))
+        self.frames = self.index["frames"]
+        g = np.load(f"{CACHE}/grid.npz")
+        self.T, self.shape = Affine(*g["transform"]), tuple(int(x) for x in g["shape"])
+        self.feats = features()
+        self.ids = load_ids(self.T, self.shape)
+        self.pxh = px_ha(self.T)
+        self.area = np.bincount(self.ids.ravel(), minlength=len(self.feats) + 1) * self.pxh
+        self.munis = {m: json.load(open(f"{FLOODS}/{info['manifest']}")) for m, info in self.index["municipalities"].items()}
+        self.crops = muni_crops(self.ids, self.feats)
+        self.rec = {i + 1: self.munis[f["properties"]["munipsgc"]]["barangays"][f["properties"]["psgc"]] for i, f in enumerate(self.feats)}
+        self.g = g
+        self.lake = None
+
+    def mask(self, m):
+        return muni_mask(self.ids, self.feats, m, self.crops[m])
+
+    def inland8(self):
+        """Boolean raster on the LAKE_STEP-coarse grid: more than INLAND_M from Laguna de Bay (the province's largest permanent water)."""
+        if self.lake is None:
+            h, w = self.shape
+            lake = np.unpackbits(self.g["lake"])[: h * w].reshape(h, w)
+            hc, wc = -(-h // LAKE_STEP), -(-w // LAKE_STEP)
+            pad = np.zeros((hc * LAKE_STEP, wc * LAKE_STEP), bool)
+            pad[:h, :w] = lake
+            near = pad.reshape(hc, LAKE_STEP, wc, LAKE_STEP).any((1, 3))
+            self.lake = distance_transform_edt(~near) * LAKE_STEP * (self.pxh * 1e4) ** 0.5 > INLAND_M
+        return self.lake
+
+    def set_evidence(self, name, label, flags, details, method):
+        """flags/details: {barangay raster id: list over frames}."""
+        for b, fl in flags.items():
+            self.rec[b].setdefault("evidence", {})[name] = {"label": label, "flagged": fl, "detail": details[b]}
+        self.index["method"][name] = method
+
+    def set_file(self, m, fi, key, rel):
+        self.munis[m]["frames"][fi][key] = rel
 
 
 def opera(frames, ids, n_bgy, px_ha, permanent):

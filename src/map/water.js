@@ -159,7 +159,7 @@ export async function addWaterLayer(map, corners, root) {
   const mat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: DoubleSide, uniforms: { ...light, uMask: { value: null }, uSize: { value: new Vector2(1, 1) }, uEye: { value: new Vector3() }, uTime: { value: 0 }, uEx: { value: 1 }, uRise: { value: 0.5 }, uLift: { value: 0 } } })
   const base = surface(dem, nw, se, origin, s)
   // The surface drawn once per slice, from just above the ground to the top, so the water has a body.
-  const volume = new InstancedBufferGeometry().copy(base)
+  const volume = Object.assign(new InstancedBufferGeometry().copy(base), { instanceCount: SLICES }) // copy() would leave it undefined and draw nothing
   volume.setAttribute('slice', new InstancedBufferAttribute(Float32Array.from({ length: SLICES }, (_, i) => 0.04 + (0.96 * i) / (SLICES - 1)), 1))
   const mesh = new Mesh(volume, mat)
   mesh.frustumCulled = false

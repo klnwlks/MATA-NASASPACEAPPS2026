@@ -16,7 +16,7 @@ export default function Legend({ frame, coherence }) {
       <button type="button" aria-label={open ? 'Hide legend' : 'Show legend'} aria-expanded={open} aria-controls="map-legend" onClick={() => setOpen((o) => !o)} className="pointer-events-auto absolute bottom-[7.5rem] right-3 z-20 grid size-11 place-items-center rounded-2xl bg-chalk text-cobalt shadow-float md:hidden">
         {open ? <X aria-hidden size={20} /> : <List aria-hidden size={20} />}
       </button>
-      <figure id="map-legend" className={`${open ? 'block' : 'hidden'} pointer-events-auto absolute bottom-[11rem] right-3 z-10 max-h-[calc(100dvh-17rem)] overflow-y-auto rounded-2xl bg-chalk px-3.5 py-2.5 shadow-float md:bottom-16 md:block md:max-h-none md:overflow-visible`}>
+      <figure id="map-legend" className={`${open ? 'block' : 'hidden'} pointer-events-auto absolute bottom-[11rem] right-3 z-10 max-h-[calc(100dvh-17rem)] overflow-y-auto rounded-2xl bg-chalk px-3.5 py-2.5 shadow-float md:bottom-auto md:left-3 md:right-auto md:top-20 md:block md:max-h-none md:overflow-visible`}>
         <ul className="space-y-1 text-sm">
           <li className="flex items-center gap-2"><span aria-hidden className={`${SWATCH} border-cobalt bg-cobalt/60`} />Flood signal</li>
           <li className="flex items-center gap-2"><span aria-hidden className={`${SWATCH} border-cobalt/60 bg-white`} />Below threshold</li>

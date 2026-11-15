@@ -29,12 +29,12 @@ function Observations({ rec, frame, frames, onFrame }) {
         <span className={`ml-auto rounded-lg px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
       </div>
       {rec.seenBy[frame].length > 0 && <p className="mt-1 text-xs text-cobalt-ink">Seen by {sources(rec.seenBy[frame])}</p>}
-      <p className="mt-1 font-mono text-sm">Open water: {rec.floodHa[frame]} ha (range {rec.floodHaRange[frame][0]}–{rec.floodHaRange[frame][1]}) · {rec.lowConfidenceHa[frame]} ha low-confidence</p>
-      <p className="text-xs text-muted">The range reruns the detection with stricter and looser thresholds; a wide range means the call is fragile.</p>
+      <p className="mt-1 font-mono text-sm">Open water: {rec.floodHa[frame]} ha{rec.floodHaRange?.[frame] && ` (range ${rec.floodHaRange[frame][0]}–${rec.floodHaRange[frame][1]})`} · {rec.lowConfidenceHa[frame]} ha low-confidence</p>
+      {rec.floodHaRange && <p className="text-xs text-muted">The range reruns the detection with stricter and looser thresholds; a wide range means the call is fragile.</p>}
       <p className="text-xs text-muted">Radar sees {seen} % of this barangay as open ground. Buildings and tree cover hide floodwater from it and are left unknown, never dry. Low confidence: water on cropland or wetland away from the lake, often paddies.</p>
       <SecondOpinions evidence={rec.evidence} frame={frame} />
       <h3 className="mt-3 text-sm font-medium text-cobalt-ink">Flooded runs, {frames.length} passes</h3>
-      {rec.episodes.length ? (
+      {rec.episodes == null ? <p className="text-sm text-muted">Duration estimates are unavailable for this record.</p> : rec.episodes.length ? (
         <ul className="mt-1 divide-y divide-line/70">
           {rec.episodes.map((e) => (
             <li key={e.first}>

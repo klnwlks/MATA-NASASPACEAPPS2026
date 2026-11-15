@@ -17,6 +17,7 @@ function runs(states, psgcs, frames) {
 
 export default function MunicipalityCard({ municipality, psgcs, floods, onFrame, onClose }) {
   const events = floods ? runs(floods.states, psgcs, floods.frames) : []
+  const assessed = floods && psgcs.some((id) => floods.states[id]?.includes('0') || floods.states[id]?.includes('1'))
   return (
     <aside aria-label="Observed flood runs" className="pointer-events-auto fixed inset-x-0 bottom-[4.75rem] z-10 flex max-h-[45vh] flex-col overflow-hidden rounded-t-2xl bg-chalk shadow-float md:absolute md:inset-x-auto md:bottom-auto md:right-3 md:top-[5rem] md:max-h-[calc(100%-6.5rem)] md:w-[22rem] md:rounded-2xl">
       <div className="overflow-y-auto p-4">
@@ -24,12 +25,12 @@ export default function MunicipalityCard({ municipality, psgcs, floods, onFrame,
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-cobalt text-white"><CloudLightning aria-hidden size={20} /></span>
           <div className="min-w-0 flex-1">
             <h2 className="text-xl font-medium leading-tight">{municipality.name}</h2>
-            <p className="text-sm text-muted">Observed flood runs · {psgcs.length} barangays · Sentinel-1, both tracks</p>
+            <p className="text-sm text-muted">Observed flood runs · {psgcs.length} barangays · Sentinel-1</p>
           </div>
           <button type="button" aria-label="Close" onClick={onClose} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-cobalt-tint hover:text-cobalt"><X aria-hidden size={18} /></button>
         </div>
         <ul className="mt-3 divide-y divide-line">
-          {floods && !events.length && <li className="py-2 text-sm text-muted">No barangay here was flagged on any pass. Barangays the radar could not assess are unknown, not dry.</li>}
+          {floods && !events.length && <li className="py-2 text-sm text-muted">{assessed ? 'No assessed barangay was flagged on any pass.' : 'No observations loaded for this municipality.'} Unknown is not dry.</li>}
           {events.map((e) => (
             <li key={e.start} className="flex items-center gap-3 py-2 text-sm">
               <div className="min-w-0 flex-1">

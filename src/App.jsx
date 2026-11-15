@@ -125,6 +125,7 @@ export default function App() {
             <option value="">Select a province</option>
             {provinces.map((p) => <option key={p.code} value={p.code}>{p.name} · {p.region}</option>)}
           </select>
+          {floods?.coverageNote && <span className="block px-2 text-xs text-muted">{floods.coverageNote}</span>}
         </label>
         {province && <aside aria-label={`${province.name} province`} className="pointer-events-auto absolute right-3 top-20 z-10 w-72 rounded-2xl bg-chalk p-4 shadow-float">
           <button type="button" onClick={() => setProvince(null)} aria-label="Close province details" className="float-right rounded-lg px-2 py-1 text-sm text-muted hover:bg-cobalt-tint">Close</button>

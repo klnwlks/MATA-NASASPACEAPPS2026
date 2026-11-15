@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Database, Satellite } from 'lucide-react'
 import BarangaySearch from './BarangaySearch.jsx'
 import SourcesPanel from './SourcesPanel.jsx'
-import logoUrl from '../assets/matatanaw_logo.svg' // Make sure this matches your file name and path
+import logoUrl from '../assets/matatanaw_logo_alt.svg'
 
 export default function Navbar({ list, frames, boundariesReady, onSelect }) {
   const [sources, setSources] = useState(false)
@@ -22,7 +22,6 @@ export default function Navbar({ list, frames, boundariesReady, onSelect }) {
         <p className={`hidden items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-medium xl:flex ${frames ? 'bg-cobalt-tint text-cobalt-ink' : 'bg-coral-tint text-coral-ink'}`}>
           <Satellite aria-hidden size={16} />{frames ? `Observations: ${frames} Sentinel-1 dates` : 'Observations: none loaded'}
         </p>
-
         <div className="relative mr-1 sm:mr-2">
           <button type="button" aria-expanded={sources} onClick={() => setSources((s) => !s)} aria-label="Sources" className="flex items-center gap-2 rounded-xl bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-cobalt-ink sm:px-3.5">
             <Database aria-hidden size={18} /><span className="hidden sm:inline">Sources</span>

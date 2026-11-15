@@ -6,10 +6,10 @@ const rows = [
   [Mountain, 'bg-mint-tint text-mint-ink', 'Elevation · GLO-30', `Copernicus 30 m surface model, smoothed. Not bare ground, not survey-grade. Drawn ${TERRAIN_EXAGGERATION}× taller than real.`],
   [Satellite, 'bg-mint-tint text-mint-ink', 'Imagery · Sentinel-2 cloudless', 'EOX 2024 composite, about 10 m per pixel, shown only when zoomed out. Not storm-date imagery and not a flood observation.'],
   [Building2, 'bg-amber-tint text-amber-ink', 'Buildings · OSM', `Footprints from OpenStreetMap. Where height is missing, drawn at ${SCHEMATIC_HEIGHT_M} m. Gaps mean unknown, not empty.`],
-  [Trees, 'bg-mint-tint text-mint-ink', 'Trees · OSM + fill', '2,068 trees are mapped in OpenStreetMap. The rest are decorative fill scattered inside mapped woods and parks, not observed trees. Shape and size are schematic.'],
-  [Shapes, 'bg-cobalt-tint text-cobalt-ink', 'Boundaries · COD-AB', 'NAMRIA and PSA, via OCHA, version 3 of 2025-02-13. Reference lines, not a legal survey.'],
-  [Satellite, 'bg-cobalt-tint text-cobalt-ink', 'Floods · Sentinel-1', 'Radar passes every 6 or 12 days, not daily, about 05:47. Open water only: buildings and tree cover hide floodwater and are shown as unknown, never dry. Paddies on cropland are marked low confidence.'],
-  [Layers, 'bg-cobalt-tint text-cobalt-ink', 'Second opinions · OPERA, NISAR', 'NASA OPERA water maps from the same passes, and NISAR L-band (sees through canopy) from June 2026 only. Each is judged against its own noise.'],
+  [Trees, 'bg-mint-tint text-mint-ink', 'Trees · OSM + fill', 'Trees mapped in OpenStreetMap are drawn as mapped. The rest are decorative fill scattered inside mapped woods and parks, not observed trees. Shape and size are schematic. Drawn only for the municipality in view, from zoom 13.'],
+  [Shapes, 'bg-cobalt-tint text-cobalt-ink', 'Boundaries · COD-AB', 'NAMRIA and PSA via OCHA, version 3 of 2025-02-13. National admin-2 areas include Metro Manila districts; the detailed Laguna view has 682 barangays. Reference lines, not a legal survey.'],
+  [Satellite, 'bg-cobalt-tint text-cobalt-ink', 'Floods · Sentinel-1', 'Radar passes are not daily. The current processing uses a dry-season reference from the same track within the two-year replay window. Buildings and tree cover can hide floodwater; paddies may look like water. A missing observation is unknown, not dry.'],
+  [Layers, 'bg-cobalt-tint text-cobalt-ink', 'Second opinions · deferred', 'OPERA, NISAR and InSAR coherence are not part of the current primary-source processing run.'],
   [Waves, 'bg-cobalt-tint text-cobalt-ink', 'Lake level · DAHITI altimetry', 'Laguna de Bay surface height every 2 weeks or so. Context for lakeshore flooding, not a flood map.'],
 ]
 

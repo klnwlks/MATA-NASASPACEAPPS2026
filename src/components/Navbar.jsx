@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Database, Info, Landmark, Menu, Satellite, ScanEye, X } from 'lucide-react'
+import { ChevronDown, Database, Info, Landmark, Menu, Satellite, X } from 'lucide-react'
 import BarangaySearch from './BarangaySearch.jsx'
 import SourcesPanel from './SourcesPanel.jsx'
+import logoUrl from '../assets/mata-logo.svg'
 
 const item = 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-ink hover:bg-cobalt-tint'
 
@@ -30,8 +31,8 @@ export default function Navbar({ list, municipalities, floods, boundariesReady, 
   return (
     <header className="pointer-events-auto absolute inset-x-3 top-3 z-20 flex items-center gap-2.5 rounded-2xl bg-chalk p-2 shadow-float">
       <div className="flex shrink-0 items-center gap-2.5">
-        <span role="img" aria-label="MATA: Tanaw" title="MATA: Tanaw" className="grid size-10 place-items-center rounded-xl bg-cobalt text-white"><ScanEye aria-hidden size={22} /></span>
-        <h1 className="hidden whitespace-nowrap pr-1 text-lg font-medium md:block">MATA: Tanaw</h1>
+        <img src={logoUrl} alt="MATA: Tanaw" title="MATA: Tanaw" className="h-10 w-auto object-contain" />
+        <h1 className="sr-only">MATA: Tanaw</h1>
       </div>
       <BarangaySearch list={list} municipalities={municipalities} disabled={!boundariesReady} onSelect={onSelect} onMunicipality={onMunicipality} />
       <div className="ml-auto hidden items-center gap-1 md:flex">

@@ -2,7 +2,7 @@
 // extrusions and trees, so roofs and crowns above the surface stay dry and the parts below it read as submerged.
 // Cost: one 32k-vertex mesh, a texture swap per frame, a cheap fragment shader; ripples repaint at RIPPLE_FPS.
 // The surface height is a visual cue (lake stage above its two-year low, see floodRise), not measured depth.
-import { BufferAttribute, Camera, Color, DoubleSide, Matrix4, Mesh, NearestFilter, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector3, Vector4, WebGLRenderer } from 'three'
+import { BufferAttribute, Camera, Color, DoubleSide, LinearFilter, Matrix4, Mesh, PlaneGeometry, Scene, ShaderMaterial, TextureLoader, Vector3, Vector4, WebGLRenderer } from 'three'
 import { MercatorCoordinate } from 'maplibre-gl'
 
 const RIPPLE_FPS = 12
@@ -82,7 +82,8 @@ varying vec2 vUv;
 void main() {
   float a = texture2D(uMask, vUv).a;
   if (a < 0.05) discard;
-  if (a < 0.5) { gl_FragColor = vec4(vec3(0.19), 0.27); return; }
+  if (a < 0.4) { if (fwidth(a) > 0.08) discard; gl_FragColor = vec4(vec3(0.19), 0.27); return; } // fwidth: skip the blend ring at water edges
+  float edge = smoothstep(0.4, 0.62, a); // filtered mask: rounded shoreline instead of 10 m blocks
   vec3 to = uEye - vW;
   float dist = length(to);
   vec3 v = to / dist;
@@ -91,11 +92,12 @@ void main() {
   vec2 grad = cos(dot(k1, p) + uTime * 0.8) * k1 * 0.05 + cos(dot(k2, p) - uTime * 1.1) * k2 * 0.035 + cos(dot(k3, p) + uTime * 1.7) * k3 * 0.018;
   vec3 n = normalize(vec3(-grad / (1.0 + dist / 600.0), 1.0));
   vec3 r = reflect(-v, n);
-  float fres = 0.03 + 0.97 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
+  float fres = 0.2 + 0.8 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
   vec3 mirror = mix(uHorizon, uSky, clamp(r.z * 1.5, 0.0, 1.0));
-  vec3 col = mix(vec3(0.02, 0.2, 0.3) * uAmb, mirror, fres) + vec3(1.0, 0.93, 0.8) * pow(max(dot(r, uSunDir), 0.0), 220.0) * uSun;
+  vec3 col = mix(vec3(0.03, 0.28, 0.6) * uAmb, mirror, fres) + vec3(1.0, 0.93, 0.8) * pow(max(dot(r, uSunDir), 0.0), 220.0) * uSun;
+  col = mix(col, vec3(0.2, 0.6, 0.7) * uAmb, (1.0 - smoothstep(0.62, 0.84, a)) * 0.5); // paler where shallow
   col = mix(col, uHorizon, smoothstep(4000.0, 12000.0, dist)); // hazes out with the sky
-  gl_FragColor = vec4(col, mix(0.8, 0.95, fres) * (a > 0.76 ? 1.0 : 0.7));
+  gl_FragColor = vec4(col, mix(0.88, 0.97, fres) * edge * (a > 0.76 ? 1.0 : 0.7));
   #include <colorspace_fragment>
 }`
 
@@ -149,7 +151,7 @@ export async function addWaterLayer(map, corners, root) {
       const mine = ++seq
       loader.load(url, (t) => {
         if (mine !== seq || !map.getStyle()) return t.dispose()
-        Object.assign(t, { flipY: false, generateMipmaps: false, minFilter: NearestFilter, magFilter: NearestFilter })
+        Object.assign(t, { flipY: false, generateMipmaps: false, minFilter: LinearFilter, magFilter: LinearFilter })
         u.uMask.value?.dispose()
         u.uMask.value = t
         u.uRise.value = rise

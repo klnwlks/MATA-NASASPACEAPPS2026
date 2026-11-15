@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MapStage from './map/MapStage.jsx'
 import Navbar from './components/Navbar.jsx'
 import BarangayCard from './components/BarangayCard.jsx'
@@ -10,6 +10,8 @@ import Credits from './components/Credits.jsx'
 import LakeChart from './components/LakeChart.jsx'
 import { loadBarangays, loadFloods } from './data.js'
 import { manilaMinutes, manilaTime } from './map/sun.js'
+
+const SWEEP_MS = 4000
 
 export default function App() {
   const [barangays, setBarangays] = useState(null)
@@ -25,7 +27,28 @@ export default function App() {
   const [clockOverride, setClockOverride] = useState(null) // Manila minutes the user dialled in; null follows the satellite pass
   const passUtc = floods?.frames[frame]?.utc
   const pass = useMemo(() => (passUtc ? new Date(passUtc) : null), [passUtc])
-  const time = useMemo(() => (clockOverride == null ? (pass ?? manilaTime(15 * 60 + 30)) : manilaTime(clockOverride, pass ?? new Date())), [clockOverride, pass])
+  const [sweep, setSweep] = useState(null)
+  const lastPass = useRef(null)
+  // Every pass is at the same clock time, so moving to a new pass plays one 24 h sun cycle ending at that pass.
+  useEffect(() => {
+    const prev = lastPass.current
+    lastPass.current = pass
+    if (!pass || !prev || prev.getTime() === pass.getTime() || clockOverride != null) return
+    const end = pass.getTime()
+    const t0 = performance.now()
+    let raf
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / SWEEP_MS)
+      setSweep(k < 1 ? new Date(end - (1 - k) * 864e5) : null)
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => {
+      cancelAnimationFrame(raf)
+      setSweep(null)
+    }
+  }, [pass, clockOverride])
+  const time = useMemo(() => sweep ?? (clockOverride == null ? (pass ?? manilaTime(15 * 60 + 30)) : manilaTime(clockOverride, pass ?? new Date())), [sweep, clockOverride, pass])
   const minutes = manilaMinutes(time)
 
   const report = useCallback((key, value) => setStatus((s) => (s[key] === value ? s : { ...s, [key]: value })), [])
